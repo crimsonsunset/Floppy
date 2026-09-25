@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Gate | 4 (QA pass) |
+| Gate | 5 (shipped) |
 | Ticket | #5 |
 | Branch | feature/5-music-track-detail-page |
 | Repos | floppy |
