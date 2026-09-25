@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Gate | 3 (AC met) |
+| Gate | 4 (QA pass) |
 | Ticket | #5 |
 | Branch | feature/5-music-track-detail-page |
 | Repos | floppy |
@@ -62,13 +62,14 @@ Out:
 
 Catalog metadata is `Track` (`album` FK, `title`, `genres`, duration, disc and track number, `musicbrainz_recording_id`). Per-user listens are `Music` rows. Play history is django-simple-history on `Media`, not a separate Play model. `origin_url` is on `Music` and `HistoricalMusic`.
 
-The album renderer already builds `{track, music, history, collection_entry}` per row. The track view loads one track and reuses that resolution for the signed-in user. It does not call scrobble, `populate_album_tracks`, or genre sync.
+The album renderer already builds `{track, music, history, collection_entry}` per row. The track view loads one track and reuses that resolution for the signed-in user. It does not scrobble or populate the album. When the user has no listen, it looks the recording up on MusicBrainz (`recording` when the track has an id, otherwise a title search) and shows that payload: release date, runtime when the track has no duration, cover when the album has none, and genres when the track and album have none. Artist and album stay the header links. The response is not written back.
 
 Genre list for the template:
 
 1. `track.genres` if it has any entries.
 2. Else `album.genres`.
-3. Else no chips.
+3. Else, when there is no listen, the MusicBrainz recording's genres.
+4. Else no chips.
 
 Empty string entries do not count as a genre.
 
