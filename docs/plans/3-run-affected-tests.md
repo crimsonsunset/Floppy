@@ -6,7 +6,7 @@ Issue [#3](https://github.com/crimsonsunset/Floppy/issues/3). Branch `test/3-run
 
 | Field | Value |
 |---|---|
-| Gate | 2 (plan ready) |
+| Gate | 5 (shipped) |
 | Ticket | 3 |
 | Branch | test/3-run-affected-tests |
 | Repos | floppy (`crimsonsunset/Floppy`) |
@@ -63,7 +63,7 @@ Out:
 
 ## Architecture
 
-`scripts/test.sh --affected` calls `PYTHONPATH=src python -m config.affected_tests` and branches on one stdout line:
+`scripts/test.sh --affected` calls `PYTHONPATH=src python src/config/affected_tests.py` and branches on one stdout line. The file is executed directly so `config/__init__.py` does not boot Celery. Tests still import `config.affected_tests`.
 
 | First line | What test.sh does |
 |---|---|
@@ -81,6 +81,7 @@ Selection, in order. The first matching rule that demands `full` wins over any l
    - A changed file under one app with an empty reverse set, and the named signal / hook modules, adds that app label.
 4. If the label set is empty and nothing asked for `full`, `none`.
 5. `mcp_server/` and `scripts/tests/` never change the mode. They are named on stderr.
+6. An app label drops module labels under that same app. The app run already includes them.
 
 Diff command shape:
 
@@ -104,7 +105,7 @@ Diff command shape:
 
 ### Phase 1: Selector
 
-About half a day.
+Done.
 
 - `config.affected_tests` with the rules above. Build the reverse map by parsing test modules and package `__init__.py` files under `src/` with `ast`.
 - Tests cover: changed test module, source module via a direct import, source module via an `app.models`-style re-export, empty reverse set to an app label, signal module to an app label, template path to `full`, `uv.lock` to `full`, docs-only to `none`, deleted test omitted, untracked test included, `mcp_server/` does not escalate.
@@ -114,7 +115,7 @@ About half a day.
 
 ### Phase 2: Wire the flag and document it
 
-A couple of hours.
+Done.
 
 - `scripts/test.sh --affected` maps `none` / `full` / `labels` as in the table. Usage comment updated.
 - `AGENTS.md` Testing section and `docs/architecture/test-suite-cost.md` name the flag, the change set, and the two fallbacks.
