@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Gate | 2 (plan ready) |
+| Gate | 3 (AC met) |
 | Ticket | #5 |
 | Branch | feature/5-music-track-detail-page |
 | Repos | floppy |
@@ -34,8 +34,8 @@ The page shows the track title, a link to the artist, a link to the album, genre
 | Mismatch | Wrong artist id, or a track whose album is not the album in the path, redirects to the canonical track URL | Album details already redirect when `artist_id` does not match the album. |
 | Shell | `music_detail_kind == "track"` and a track component included from `media_details.html` | The issue asks for the same kind of page artist and album already are. Episode details are a different shell. |
 | Genres | `Track.genres` when that list is non-empty, otherwise `album.genres` | Locked in Gate 1. Chips use the existing sidebar markup (`--color-genre-badge-*`). No new chip design, no shared partial. |
-| Plays | The same `Music` resolution the album row uses: this user's row for `track_id`, else the recording id | One track page should not invent a second way to find listens. History is `music.history` ordered by `-end_date`. |
-| Origin URL | Each history row shows `origin_url` when that historical row has one | The field already lives on `Music` and `HistoricalMusic`. The page is where it becomes visible. |
+| Plays | The same `Music` resolution the album row uses: this user's row for `track_id`, else the recording id | One track page should not invent a second way to find listens. History is `music.history` ordered by `-end_date`. Rows with no `end_date` are omitted. |
+| Origin URL | Each history row links `origin_url` when that value is `http://` or `https://` | The field already lives on `Music` and `HistoricalMusic`. Anything else stays off the page so the href cannot be a script URL. |
 | No plays | The page still renders. History is empty. | The row on the album exists before anyone has listened. |
 | Entry | The album track title becomes a link. Statistics, media cards, and the API stay on the album URL. | The page has to be reachable from the row the issue describes. Retargeting the rest of the app is a different change. |
 
@@ -81,7 +81,7 @@ Empty string entries do not count as a genre.
 | `src/app/views.py` | Re-export the view the way artist and album are re-exported |
 | `src/app/templatetags/app_tags.py` | `music_track_url` |
 | `src/templates/app/media_details.html` | Branch for `music_detail_kind == "track"` |
-| `src/templates/app/components/detail_music_track.html` | New. Title, artist, album link, genre chips, history |
+| `src/templates/app/components/detail_music_track.html` | New. Title, artist (album credits when the album has them, otherwise the album artist), album link, track number, duration, genre chips, history |
 | `src/templates/app/components/detail_music_album.html` | Track title links to the track page |
 | `src/app/tests/views/test_media_details.py` | Page, redirect, genres, history |
 | `src/app/tests/test_templatetags.py` | Canonical track URL shape |
@@ -105,7 +105,7 @@ About half a day.
 About half a day.
 
 - Sidebar chips from `Track.genres`, falling back to `album.genres`.
-- List this track's listens, newest `end_date` first, with `origin_url` when the historical row has one.
+- List this track's completed listens, newest `end_date` first. A row with no `end_date` is skipped. `origin_url` is a link only when it is `http://` or `https://`.
 - A track with no `Music` row still renders, with no listen rows.
 - The album page track title links here.
 - Tests for track genres, album fallback, empty history, a history row with an origin URL, and the album-row href.
@@ -134,4 +134,4 @@ About half a day.
 
 ## Close-out
 
-`update-planning-md` runs once implementation has stopped, against this file. Cosmetic drift gets fixed there. A reversed decision does not get rewritten silently.
+Implementation is `a4aad62c`. This pass recorded the sidebar track number and duration, album-credit artist line, skipped history rows with no `end_date`, and http(s)-only origin links. Genre fill was not touched.
