@@ -73,6 +73,9 @@ class MusicPlaybackEvent:
     # …). Distinct from ResolvedMusicMetadata.source (the metadata provider,
     # e.g. "musicbrainz") and stored on Music.entry_source.
     entry_source: str = ""
+    # ListenBrainz additional_info.origin_url. Empty when the client
+    # did not send one. Hooks key off this; core code does not.
+    origin_url: str = ""
 
 
 @dataclass
@@ -163,7 +166,8 @@ def record_music_playback(event: MusicPlaybackEvent) -> Music | None:
     Artist/Album/Track/Item existence, and updates the per-user Music row.
     An album saved without genres is then filled from its MusicBrainz release
     group, outside the write transaction. The play then copies the album's
-    genres, or the artist's when the album still has none.
+    genres, or the artist's when the album still has none. A client origin
+    URL is stored on the Music row when the scrobble sent one.
     """
     played_at = event.played_at or timezone.now()
 
@@ -250,6 +254,15 @@ def record_music_playback(event: MusicPlaybackEvent) -> Music | None:
                     exception_summary(exc),
                 )
         sync_music_item_genres_from_album(item, album)
+
+    if music is not None and event.origin_url and music.origin_url != event.origin_url:
+        music.origin_url = event.origin_url
+        music.save(update_fields=["origin_url"])
+
+    if music is not None:
+        from app.signals_music import music_listen_recorded
+
+        music_listen_recorded.send(sender=Music, music=music, event=event)
 
     return music
 
