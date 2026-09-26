@@ -322,6 +322,7 @@ Models/migrations and divergent UI normally require manual adaptation. Provider 
 - Django/manage.py commands require `SECRET` in the environment or `.env`.
 - Run migrations: `uv run --no-sync python src/manage.py migrate`
 - Run the app: `uv run --no-sync python src/manage.py runserver`
+- One-command dev server: `npm run dev` (migrate, then runserver with `DEBUG=True` and browser auto-refresh on port `PORT`, default 8000). Add `-- --css` for the Tailwind watcher or `-- --celery` for both workers. See `scripts/dev.sh`.
 - Run API contract tests: `SECRET=test-only scripts/test.sh users.tests.views.test_about app.tests.test_api_contracts app.tests.test_domain_vocabulary`
 - Generate the domain guide: `PYTHONPATH=src uv run --no-sync python -m app.domain_vocabulary`
 - Check the domain guide: `PYTHONPATH=src uv run --no-sync python -m app.domain_vocabulary --check`
