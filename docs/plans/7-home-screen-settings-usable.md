@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Gate | 2 (plan ready) |
+| Gate | 3 (AC met, plan reconciled) |
 | Ticket | 7 |
 | Branch | bugfix/7-home-screen-settings-usable |
 | Repos | floppy |
@@ -66,23 +66,24 @@ Sortable stays a global `Sortable.create` API. Pages that already no-op when `ty
 
 Collapsed header text is the row `title` values for that section, in order. Expanding still reveals the editor.
 
-`x-show="!isDesktop || hovering || openMenu !== null || row.editorOpen"` goes away for the control cluster. The `lg` hover layout in `src/static/css/input.css` (`.home-settings-row-*`) stops hiding those controls. `src/static/css/main.css` is the committed Tailwind output and has to be regenerated with it.
+`x-show="!isDesktop || hovering || openMenu !== null || row.editorOpen"` is gone. The narrow-width row rules in `input.css` apply at every width, and the same block in `main.css` was edited to match. No new utility classes, so the Tailwind build was not regenerated.
 
 ## Files
 
 | Path | Change |
 |---|---|
 | `src/static/js/libraries/sortablejs-1.15.3.min.js` | New. Upstream 1.15.3 min build. |
-| `src/templates/base.html` | Script tag for that file, before the modules that call `Sortable`. |
+| `src/templates/base.html` | Script tag for that file, before `{% block js %}`. |
+| `src/templates/base_public.html` | Same tag. Public list pages extend this template, not `base.html`. |
 | `src/static/js/savedViews.js` | Drop `SORTABLE_URL`. No network fetch. |
 | `src/static/js/collectionCustomFields.js` | Drop the CDN `script.src`. |
 | `src/templates/users/home_screen.html` | Drop the CDN `script.src`. Collapsed titles, visible controls, filter label, intro, rename affordance, aria-labels. |
 | `src/templates/users/components/_media_type_order_js.html` | Drop the CDN `script.src`. |
-| `src/templates/lists/list_detail.html` | Local script, or remove the tag if `base.html` already loaded it. |
+| `src/templates/lists/list_detail.html` | CDN tag removed. The base template already loaded the library. |
 | `src/templates/lists/smart_list_detail.html` | Same. |
 | `src/users/home_screen.py` | `filter_label` on each serialized settings row. |
 | `src/static/css/input.css` | Row controls visible without hover. |
-| `src/static/css/main.css` | Regenerated from `input.css`. |
+| `src/static/css/main.css` | Same custom rules as `input.css`. Edited in place. No new Tailwind utilities. |
 | `src/users/tests/views/test_home_screen.py` | CDN assertion, `filter_label`, collapsed title markup. |
 | `src/users/tests/views/test_home_screen_menus.py` | Menus open without `row.hover()`. |
 
@@ -108,7 +109,7 @@ About a day.
 - `filter_label` from `describe_library_query` on the serialized row. Filter control shows that string before `filter_fields` loads, and the full joined labels after.
 - Delete the desktop hover gate. Stack the controls the way the narrow layout already does. Regenerate `main.css`.
 - Visible input border, muted placeholder, accessible name on the rename field. `aria-label` on the section grip, the row grip, and delete.
-- Point `test_home_screen_menus.py` at visible controls. Do not require hover.
+- Point `test_home_screen_menus.py` at visible controls. Do not require hover. Wait for the `filter-fields` response before keyboard focus. Expanding a section replaces the row DOM when that payload arrives, and a focus call during that swap lands on the section header.
 
 **Outcome:** With TV Shows collapsed, the header lists that section's row titles in human language (`In Progress • Not Caught Up`, not `not_caught_up`). Filter, status, sort, and delete are in the accessibility tree without a hover. `scripts/test.sh users.tests.views.test_home_screen` passes. The Playwright file is updated. It stays `@tag("slow", "playwright")` and is not part of the fast suite.
 
