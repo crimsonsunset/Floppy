@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Gate | 3 (AC met, plan reconciled) |
+| Gate | 5 (shipped) |
 | Ticket | 7 |
 | Branch | bugfix/7-home-screen-settings-usable |
 | Repos | floppy |
@@ -131,3 +131,21 @@ After both phases, reconcile this doc with what shipped (`update-planning-md`). 
 
 - [Issue #7](https://github.com/crimsonsunset/Floppy/issues/7)
 - `docs/architecture/theming.md` for the color tokens the rename field already uses
+
+## QA (2026-09-25)
+
+Local gunicorn on `http://localhost:8299`, worktree DB, auto-login `qa-home`. Chrome page `http://localhost:8299/settings/home-screen`.
+
+- Intro sentence is on the page. Collapsed TV Shows and Anime read `In Progress • Not Caught Up`. No raw `not_caught_up`.
+- Same-origin `GET /static/js/libraries/sortablejs-1.15.3.min.js` returned 200. `window.Sortable` is a function. No jsDelivr script. Console has no Sortable warning.
+- Expanded TV Shows shows Reorder row, Row name, filter `In Progress, Not Caught Up`, status `In Progress`, sort `Episode Air Date`, and Delete row, with no hover.
+- Dragged the TV Shows section grip onto Movies, saved, and the reloaded page kept TV Seasons, Movies, TV Shows, with toast "Home screen updated successfully."
+- Sidebar settings loads the same local script and `Sortable`, with no CDN request and no Sortable console warning.
+
+Hands-on retest found three more defects, all fixed:
+
+- Row grips did nothing. The section list and the row lists shared the `.drag-handle` selector, so the outer list took the gesture. Handles are now `.section-drag-handle` and `.row-drag-handle`, each list with its own `draggable` selector.
+- Rows were about 128px tall on desktop. The narrow stacked rules applied at every width. They are back inside `@media (max-width: 63.999rem)`, and the controls sit on one line with the title on desktop. They are still visible without hover.
+- After Add Row or Delete, drag died on the whole page. `initSortables()` looked up lists with `this.$el`, which Alpine resolves to the clicked button, not the component root. It now looks up `[data-home-section-list]` from `document`. This predates the branch; the CDN block hid it.
+
+Filter summary rework: counts like "2 Statuses", and the filter button repeating the status, hid what a row shows. Each library row now has pills under its name, one per active filter (`Status: In Progress, Planning`, `Progress: Not Caught Up`, tags), in the smart-list rules pill style. The Filter and Status buttons are plain labels. Before `filter_fields` loads, pill text is the humanized stored value, so raw keys never show. The server `filter_label` field and `settings_filter_label()` were removed because nothing reads them anymore.
