@@ -85,6 +85,23 @@ def _safe_origin_url(value):
     return ""
 
 
+def _soundcloud_play_links(tracks_with_data):
+    """Return one SoundCloud chip per distinct play URL on this album."""
+    links = {}
+    for track_data in tracks_with_data:
+        music = track_data.get("music")
+        if music is None:
+            continue
+        url = _safe_origin_url(getattr(music, "origin_url", ""))
+        if "soundcloud.com" not in url.lower():
+            continue
+        label = "SoundCloud"
+        if label in links and links[label] != url:
+            label = track_data["track"].title or url
+        links.setdefault(label, url)
+    return links
+
+
 def _music_entry_for_track(user, track):
     """Resolve this user's Music row the same way the album track list does."""
     user_music_by_track = {}
@@ -1022,6 +1039,9 @@ def _render_music_album_details(request, artist, album):
             {
                 "track": track,
                 "music": music_entry,
+                "origin_url": _safe_origin_url(
+                    getattr(music_entry, "origin_url", "") if music_entry else "",
+                ),
                 "history": (
                     list(music_entry.history.all().order_by("-end_date"))
                     if music_entry
@@ -1100,6 +1120,7 @@ def _render_music_album_details(request, artist, album):
     detail_link_sections = view_barrel._build_detail_link_sections(
         {
             "source_url": album_details.get("musicbrainz_url", ""),
+            "external_links": _soundcloud_play_links(tracks_with_data),
         },
         MediaTypes.MUSIC.value,
         Sources.MUSICBRAINZ.value,
