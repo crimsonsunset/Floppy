@@ -21,9 +21,9 @@ Issue [#3](https://github.com/crimsonsunset/Floppy/issues/3). Branch `test/3-run
 
 `scripts/test.sh` can run a dotted label you type, or a tag tier. It cannot turn a diff into those labels. This adds one opt-in mode, `--affected`, that does that and hands the labels to the existing `manage.py test` / `ResilientDiscoverRunner` path.
 
-It is the local iteration path. CI stays the full app list minus `network`. The no-arg fast suite stays the pre-finish gate.
+It is the local iteration path. With a coverage map, a pull request runs the tests that executed the changed lines. A push to `latest` still runs the full app list minus `network` and records the next map. The no-arg fast suite stays the pre-finish gate.
 
-This is not a pytest migration, not a replacement for the CI job, and not a package-graph tool.
+This is not a pytest migration and not a package-graph tool.
 
 ## Decisions
 
@@ -41,7 +41,7 @@ This is not a pytest migration, not a replacement for the CI job, and not a pack
 | Escape hatch | `uv.lock`, `pyproject.toml`, `src/manage.py`, `scripts/test.sh`, `src/config/settings.py`, `src/config/test_settings.py`, `src/config/__init__.py`, `src/config/test_runner.py`, `src/config/affected_tests.py` | Issue: lockfile, settings, and runner changes run the fast suite. |
 | Non-code | Docs, workflows, images, and other paths outside `src/`, `uv.lock`, and `pyproject.toml` are ignored. If they are the whole diff, run nothing and say so | A README is not an unmapped Python module. |
 | Deleted test module | Do not emit a label for a path that is gone | Django errors on a missing label. A deleted source file still selects tests that imported it. |
-| CI workflows | Do not edit `.github/workflows/**` | This repo fails PRs that touch workflow files. The full job stays the merge gate. |
+| CI workflows | A pull request downloads the map from the last successful `latest` run and calls `--affected --include-slow`. `latest` and `release` still run the full app list and upload the map. | The workflow check fails on the PR that edits the workflow. Later PRs do not touch it. No map falls back to the import walk, and a `full` result still runs the CI suite. |
 | Code home | `src/config/affected_tests.py` | Sits next to the test runner. Tests import `config.affected_tests` with no path hack. Plain `ast`, no Django import, no new dependency. |
 
 ## Scope
@@ -56,7 +56,7 @@ In:
 Out:
 
 - pytest-testmon, pytest-picked, and the rest of that family. The runner is Django's. Issue #3.
-- Replacing or shrinking `.github/workflows/app-tests.yml`. Issue #3, and workflow edits fail CI.
+- Switching the suite to pytest so a pytest selector can run it. The runner stays Django's.
 - Nx, Turborepo, Bazel. One Django project. Issue #3.
 - Parsing `@patch` strings and other lazy references. Issue #3. Empty reverse set already falls back to the app label.
 - Making `--affected` the no-arg default. The fast suite stays the gate in `AGENTS.md`.
@@ -64,6 +64,8 @@ Out:
 ## Architecture
 
 `scripts/test.sh --affected` calls `PYTHONPATH=src python src/config/affected_tests.py` and branches on one stdout line. The file is executed directly so `config/__init__.py` does not boot Celery. Tests still import `config.affected_tests`.
+
+When `.floppy/affected.coverage` exists, the old side of `git diff -U0 <merge-base>` is intersected with coverage contexts (`dynamic_context = test_function`, `core = ctrace`). Contexts collapse to the test module. The import walk below runs only for paths the map cannot answer, and for a missing map. `scripts/test.sh --affected-record` writes the map from the CI suite.
 
 | First line | What test.sh does |
 |---|---|
