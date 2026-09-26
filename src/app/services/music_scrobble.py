@@ -30,6 +30,7 @@ from app.services.music import (
     populate_album_implied_genres,
     prefetch_album_covers,
     refresh_album_cover_art,
+    store_matched_genres,
     sync_artist_discography,
     sync_music_item_genres_from_album,
 )
@@ -166,8 +167,10 @@ def record_music_playback(event: MusicPlaybackEvent) -> Music | None:
     Artist/Album/Track/Item existence, and updates the per-user Music row.
     An album saved without genres is then filled from its MusicBrainz release
     group, outside the write transaction. The play then copies the album's
-    genres, or the artist's when the album still has none. A client origin
-    URL is stored on the Music row when the scrobble sent one.
+    genres, or the artist's when the album still has none. After listen hooks
+    run, any genre list found on the album, item, track, or artist is stored on
+    the others that are still empty. A client origin URL is stored on the Music
+    row when the scrobble sent one.
     """
     played_at = event.played_at or timezone.now()
 
@@ -263,6 +266,10 @@ def record_music_playback(event: MusicPlaybackEvent) -> Music | None:
         from app.signals_music import music_listen_recorded
 
         music_listen_recorded.send(sender=Music, music=music, event=event)
+        for row in (item, album, track, artist):
+            if row is not None and row.pk:
+                row.refresh_from_db(fields=["genres"])
+        store_matched_genres(artist=artist, album=album, track=track, item=item)
 
     return music
 
