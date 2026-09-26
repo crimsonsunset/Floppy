@@ -867,7 +867,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "coverage", specifier = "==7.13.5" },
-    { name = "django-browser-reload", specifier = ">=1.21.0" },
+    { name = "django-browser-reload", specifier = "==1.21.0" },
     { name = "django-upgrade", specifier = "==1.30.0" },
     { name = "djlint", specifier = "==1.36.4" },
     { name = "fakeredis", extras = ["lua"], specifier = "==2.35.1" },
