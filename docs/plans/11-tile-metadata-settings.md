@@ -1,14 +1,20 @@
 # Tile metadata settings
 
-[Issue #11](https://github.com/crimsonsunset/Floppy/issues/11). Branch to cut: `feature/11-tile-metadata-settings` from `origin/latest`. Follows the "show all metadata on a tile" question after the Recently Played change (`872b0b78`).
+[Issue #11](https://github.com/crimsonsunset/Floppy/issues/11). Branch: `feature/11-tile-metadata-settings`, cut from `origin/latest` @ `863d615e`. Follows the "show all metadata on a tile" question after the Recently Played change (`872b0b78`).
 
 ## Flow state
 
 | Field | Value |
 |---|---|
 | Gate | 2 (plan ready) |
+| Ticket | 11 |
+| Branch | feature/11-tile-metadata-settings |
 | Repos | floppy |
-| Base | origin/latest @ 872b0b78 |
+| Isolation | worktree |
+| Worktrees | /Users/joe/Desktop/Repos/Personal/floppy-wt/11/floppy |
+| Base | origin/latest @ 863d615e |
+| QA mode | lets-qa |
+| Gates | all |
 | Estimated effort | 5 to 7 days across 5 phases |
 | Updated | 2026-09-29 |
 
@@ -37,7 +43,8 @@ Dependency chain: Phase 1 (registry + storage) blocks everything. Phase 2 (share
 | Extra-query fields | Selectable everywhere. The Tiles page marks them with an "extra query" pill. A prefetch is added only for surfaces that render a type whose profile enables that field | Asked. Cost is opt-in per user, not paid by default. |
 | Settings UI | New Settings page `Tiles` with a per-type editor: check all, check none, per-field checkboxes, and a live preview | Asked. |
 | Preview | Server-rendered fragment of the real `{% media_card %}` partial for a sample item of that type from the user's library, re-fetched as the draft changes | One renderer. A client-side mock would drift from the card. |
-| API | Web only. The three absorbed prefs keep their names in `/api/v1/user/preferences/` and read and write through the JSON | Appearance and Home Screen have no fork API. Renaming the fields would break API clients. |
+| API | Web only. The three absorbed prefs keep their names on `/api/v1/user/preferences/`. `PATCH` of a present name writes every type. `GET` returns that name only when every type agrees, and omits it when they differ. `hover` / `always` is a hardcoded choice list after the column drop. Session history reads `hide_zero` from the row's media type | A `GET` that invents a value gets written back and erases per-type edits. `PATCH` already ignores absent keys. |
+| Lists index | `list_grid.html` always shows item count and completion. No profile and no hover class. Last-watched stays the sort footer. Items on a list page use the shared card | The index card is not a media tile and has no type to bind `display` to. |
 
 Why two prefs are not absorbed: `title_display_preference` is read by details pages, search, and `Item` (`app/models/item.py`, `media_details_views.py`, `search_views.py`). `book_comic_manga_progress_percentage` is read by track forms, save views, and `Media`. Both change behavior outside tiles, so moving them into a tile profile would change unrelated pages. The Tiles page shows both as linked controls that jump to their Preferences row. Say so in the PR.
 
@@ -56,13 +63,15 @@ In:
 - Field registry, JSON storage, parser, data migration from the three absorbed prefs.
 - Shared card (11 surfaces) rendering from the profile, replacing the hard-coded subtitle chain.
 - Tiles settings page, per-type editor, all/none/some controls, extra-query pills, live preview.
-- Hand-rolled media tiles: music artist and album grids, search inline album cards, history card, list grid, episode row, `media_card_list` row.
-- Non-media and secondary tiles: person and cast, stats highlight, active playback, calendar rows.
+- Hand-rolled media tiles: music artist and album grids, search inline album cards, search online artist cards, history card, episode row, `media_card_list` row.
+- Non-media and secondary tiles: person and cast (live templates only), stats highlight, active playback, calendar list rows and calendar agenda rows.
+- `show_media_score` reads `hide_zero` from the item's type profile, including on session history rows.
 - API mapping for the three absorbed prefs, OpenAPI regeneration, docs, and a contract test that catches a tile template that ignores the profile.
 
 Out:
 
 - Per-surface overrides. Decision above picked per media type. Add later only if asked.
+- A profile for lists-index cards. Item count and completion stay hardcoded and always visible. Last-watched stays a sort footer, same exclusion as the library sort footer.
 - `title_display_preference` and `book_comic_manga_progress_percentage`. Used outside tiles, see above.
 - Table view columns. `table_column_prefs` already owns them.
 - The library sort footer under the card in `media_grid_items.html`. It reports the active sort, it is not tile metadata.
@@ -96,7 +105,9 @@ Rendering: `card_surfaces.card_context` resolves the profile once per card from 
 
 Prefetch: each surface's queryset builder asks the registry for `extra_query` fields the user's enabled profiles need for the types on that page, and adds the matching `select_related` or `prefetch_related`. A field that is off costs nothing. Same rule as the Recently Played change, where `get_recently_unrated` extends `select_related` for music.
 
-Preview: `GET settings/tiles/preview?type=<type>` with the draft profile in the query string returns the `media_card` fragment for the user's most recently added item of that type. If the user has none, it uses a small fixed sample row for that type so the empty account still sees something.
+Preview: `GET settings/tiles/preview?type=<type>` with the draft profile in the query string returns the `media_card` fragment for the user's most recently added item of that type. If the user has none, it uses a small fixed sample row for that type so the empty account still sees something. The page refetches that fragment with Alpine `fetch` as the draft changes, the same transport Home Screen uses for its aux calls.
+
+Preferences API, after the columns drop: `UserPreferencesView` special-cases the three names. `PATCH` copies the value onto every type profile (`display`, presence of `progress`, or `options.rating.hide_zero`). `GET` includes the name only when every type currently has that same value. `choices.media_card_subtitle_display` stays `["hover", "always"]` from a constant in the view, because `_field_choices` reads the model field. `show_media_score` takes the item's media type and reads that profile's `hide_zero`.
 
 Home rows are cached and pickled. Field values are computed at render, not stored on cached adapters, so the cache stays valid when a profile changes. The existing pickle regression test stays.
 
@@ -120,11 +131,12 @@ Modify:
 | `src/templates/users/base.html` | Sticky nav entry. |
 | `src/templates/users/preferences.html` | Remove the three absorbed rows. Add links to the Tiles page. |
 | `src/app/card_surfaces.py` | Resolve the profile in `card_context`. |
-| `src/app/templatetags/app_tags.py` | `{% tile_metadata %}` tag. Remove the `hide_zero_rating` read. |
+| `src/app/templatetags/app_tags.py` | `{% tile_metadata %}` tag. `show_media_score` reads `hide_zero` from the item's type profile. |
 | `src/templates/app/components/media_card.html` | Replace the subtitle chain with the field loop. |
 | `src/static/css/input.css`, `main.css` | Rebuild only if new utilities are used. |
-| `src/templates/app/components/history_card.html`, `artist_grid_items.html`, `album_list_grid_items.html`, `album_grid.html`, `artist_relation_grid.html`, `app/search.html`, `lists/components/list_grid.html`, `media_card_list.html`, `episode_row` | Phase 4: call `{% tile_metadata %}`. |
-| `src/templates/app/components/person_card_inline.html`, `person_filmography_card.html`, `cast_card`, `statistics/highlight_set.html`, `active_playback_card.html`, `app/episode_details.html`, `events/calendar_list` | Phase 5: same. |
+| `src/templates/app/components/history_card.html`, `artist_grid_items.html`, `album_list_grid_items.html`, `album_grid.html`, `artist_relation_grid.html`, `app/search.html` (inline albums and online artists), `media_card_list.html`, `episode_row` | Phase 4: call `{% tile_metadata %}`. |
+| `src/templates/app/components/person_card_inline.html`, `person_filmography_card.html`, `statistics/highlight_set.html`, `active_playback_card.html`, `app/episode_details.html`, `events/components/calendar_list.html`, `events/components/calendar_grid.html` | Phase 5: same. `cast_card.html` is unused. Do not wire it. |
+| `src/templates/lists/components/list_grid.html` | Phase 5: drop the `media-card-subtitle-always` class. Count and completion stay hardcoded and always visible. |
 | `src/app/models/manager.py` and surface queryset builders | Registry-driven prefetch. |
 | `src/api/fork_views_users.py` | Map the three absorbed names to the JSON. |
 | `src/api/contracts/openapi.yaml` | Regenerate. |
@@ -171,27 +183,28 @@ About 1.5 days.
 
 About 1.5 days.
 
-- Music artist and album grids, search inline album cards, `artist_relation_grid`, history card (runtime chip and checkmark become the `runtime` and `status` fields), `list_grid`, `episode_row`, `media_card_list`.
+- Music artist and album grids, search inline album cards, search online artist cards, `artist_relation_grid`, history card (runtime chip and checkmark become the `runtime` and `status` fields), `episode_row`, `media_card_list`.
 - These templates call `{% tile_metadata %}` and drop their own hard-coded text.
 - The album screenshot case (history tile) is the acceptance check.
 
-**Outcome:** On History, Artist, Album, and a list page, a tile shows exactly the fields set for its media type, matching the Tiles preview, with the runtime chip controllable from the settings page.
+**Outcome:** On History, Artist, Album, search music results, and the media tiles on a list page, a tile shows exactly the fields set for its media type, matching the Tiles preview, with the runtime chip controllable from the settings page. The lists index is unchanged in this phase.
 
 ### Phase 5: Remaining tiles, cleanup, contract
 
 About 1.5 days.
 
-- Person and cast, stats highlight, active playback, episode details cast/crew, calendar rows.
+- Person and cast on the live templates (`person_card_inline`, `person_filmography_card`, `episode_details`), stats highlight, active playback, calendar list rows and calendar agenda rows.
 - Add the `person` profile editor to the Tiles page.
-- Drop `media_card_subtitle_display`, `progress_bar`, `hide_zero_rating` and the check constraint. API views map the old names to the JSON. Regenerate `openapi.yaml`.
+- `list_grid.html`: remove the subtitle-always class so item count and completion are always visible.
+- Drop `media_card_subtitle_display`, `progress_bar`, `hide_zero_rating` and the check constraint. API `PATCH` fans each present name out to every type. API `GET` omits a name whose types disagree. `show_media_score` reads the item's type profile. Regenerate `openapi.yaml`.
 - Update `docs/architecture/media-card.md`. Extend the contract test so a tile template that does not read the profile fails.
 - Run `scripts/test.sh` (fast suite), ruff, `check_migration_hygiene --strict`, and `scripts/replay_upgrade_matrix.sh` for the column drop.
 
-**Outcome:** `rg media_card_subtitle_display src --glob '!**/migrations/**'` only hits the API mapping. Every tile listed in the inventory reads the profile. `GET /api/v1/user/preferences/` still returns the three old names with correct values, and the fast suite and contract tests pass.
+**Outcome:** `rg media_card_subtitle_display src --glob '!**/migrations/**'` only hits the API mapping. Every media tile in the inventory reads the profile. Lists-index cards show the item count with no hover class. `GET /api/v1/user/preferences/` returns each of the three old names when every type agrees and omits a name when they differ. `PATCH` of one name updates every type and leaves the other names alone. The fast suite and contract tests pass.
 
 ## Risks
 
-- The column drop and the API mapping are the only breaking-shaped parts. Phase 5 is separable, so Phases 1 to 4 ship with the columns in place if the replay matrix finds trouble.
+- The column drop and the API mapping are the only breaking-shaped parts. `GET` omitting a mixed key is a contract change for clients that assume the key is always present. Phase 5 is separable, so Phases 1 to 4 ship with the columns in place if the replay matrix finds trouble.
 - Field cost is a guess until Phase 1 checks each field against each surface's loaded columns. A misclassified field either over-warns with the pill or adds a hidden N+1. Phase 2 verifies query counts on the library grid.
 - The person profile is an assumption. Cutting it does not affect the other phases.
 
