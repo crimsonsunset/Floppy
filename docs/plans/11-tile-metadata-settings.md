@@ -45,6 +45,7 @@ Dependency chain: Phase 1 (registry + storage) blocks everything. Phase 2 (share
 | Preview | Server-rendered fragment of the real `{% media_card %}` partial for a sample item of that type from the user's library, re-fetched as the draft changes | One renderer. A client-side mock would drift from the card. |
 | API | Web only. The three absorbed prefs keep their names on `/api/v1/user/preferences/`. `PATCH` of a present name writes every type. `GET` returns that name only when every type agrees, and omits it when they differ. `hover` / `always` is a hardcoded choice list after the column drop. Session history reads `hide_zero` from the row's media type | A `GET` that invents a value gets written back and erases per-type edits. `PATCH` already ignores absent keys. |
 | Lists index | `list_grid.html` always shows item count and completion. No profile and no hover class. Last-watched stays the sort footer. Items on a list page use the shared card | The index card is not a media tile and has no type to bind `display` to. |
+| Surface captions | Stats highlights keep the "Played {date}" line and the top-credit date. Active playback keeps the live clock. Calendar rows keep the media-type label and event time. Each of those templates also renders `{% tile_lines %}` | Those captions are the card's job, not a metadata field. The statistics view test requires the Played date. Chosen 2026-09-29 over dropping them. |
 
 Why two prefs are not absorbed: `title_display_preference` is read by details pages, search, and `Item` (`app/models/item.py`, `media_details_views.py`, `search_views.py`). `book_comic_manga_progress_percentage` is read by track forms, save views, and `Media`. Both change behavior outside tiles, so moving them into a tile profile would change unrelated pages. The Tiles page shows both as linked controls that jump to their Preferences row. Say so in the PR.
 
@@ -101,7 +102,7 @@ Stored shape on `User.tile_metadata` (JSON, default `{}`):
 
 A missing type falls back to `default_profile(media_type)`, which reproduces the current chain for that type. The parser drops unknown fields and fields that do not apply to the type, so a stale save cannot break a tile.
 
-Rendering: `card_surfaces.card_context` resolves the profile once per card from `user` and `media_type` and puts an ordered list of field values in context. `media_card.html` replaces the priority chain under `{% if from_grid %}` with a loop over that list. Field values come from one function per field id in the registry module, so hand-rolled templates call the same tag (`{% tile_metadata media user %}`) instead of hand-building strings. The `media-card-subtitle-always` class keys off `display`.
+Rendering: `card_surfaces.card_context` resolves the profile once per card from `user` and `media_type`. When the saved field list matches the type default, `media_card.html` keeps the existing subtitle markup, so an untouched profile renders the same HTML as before. When the list differs, the card loops `{% tile_lines %}` output. Hand-rolled tiles call `{% tile_lines %}`. The `media-card-subtitle-always` class keys off `display`. History shows the status chip only when `status` is enabled and the runtime chip only when `runtime` is enabled. The three surface captions in the decision above stay beside the profile lines.
 
 Prefetch: each surface's queryset builder asks the registry for `extra_query` fields the user's enabled profiles need for the types on that page, and adds the matching `select_related` or `prefetch_related`. A field that is off costs nothing. Same rule as the Recently Played change, where `get_recently_unrated` extends `select_related` for music.
 
@@ -119,6 +120,7 @@ Create:
 |---|---|
 | `src/users/tile_metadata.py` | Registry, `default_profile`, `parse_tile_metadata`, per-field value functions. |
 | `src/users/migrations/0137_tile_metadata.py` | Add `tile_metadata` JSON, seed from the three prefs. Generated against the current graph. |
+| `src/users/migrations/0138_drop_tile_preference_columns.py` | Drop the three absorbed columns and the check constraint after the seed. |
 | `src/templates/users/tiles.html` | Tiles settings page and Alpine editor. |
 | `src/users/tests/test_tile_metadata.py` | One parser and default-profile check. |
 
@@ -131,11 +133,11 @@ Modify:
 | `src/templates/users/base.html` | Sticky nav entry. |
 | `src/templates/users/preferences.html` | Remove the three absorbed rows. Add links to the Tiles page. |
 | `src/app/card_surfaces.py` | Resolve the profile in `card_context`. |
-| `src/app/templatetags/app_tags.py` | `{% tile_metadata %}` tag. `show_media_score` reads `hide_zero` from the item's type profile. |
-| `src/templates/app/components/media_card.html` | Replace the subtitle chain with the field loop. |
+| `src/app/templatetags/app_tags.py` | `{% tile_lines %}`, `{% tile_subtitle_class %}`, `{% tile_field_on %}`. `show_media_score` reads `hide_zero` from the movie profile when no type is passed. Templates that know the type use `{% score_is_visible %}`. |
+| `src/templates/app/components/media_card.html` | Default field lists keep the old subtitle markup. A custom field list renders the line loop. |
 | `src/static/css/input.css`, `main.css` | Rebuild only if new utilities are used. |
-| `src/templates/app/components/history_card.html`, `artist_grid_items.html`, `album_list_grid_items.html`, `album_grid.html`, `artist_relation_grid.html`, `app/search.html` (inline albums and online artists), `media_card_list.html`, `episode_row` | Phase 4: call `{% tile_metadata %}`. |
-| `src/templates/app/components/person_card_inline.html`, `person_filmography_card.html`, `statistics/highlight_set.html`, `active_playback_card.html`, `app/episode_details.html`, `events/components/calendar_list.html`, `events/components/calendar_grid.html` | Phase 5: same. `cast_card.html` is unused. Do not wire it. |
+| `src/templates/app/components/history_card.html`, `artist_grid_items.html`, `album_list_grid_items.html`, `album_grid.html`, `artist_relation_grid.html`, `app/search.html` (inline albums and online artists), `media_card_list.html`, `episode_row` | Phase 4: call `{% tile_lines %}`. |
+| `src/templates/app/components/person_card_inline.html`, `person_filmography_card.html`, `statistics/highlight_set.html`, `active_playback_card.html`, `app/episode_details.html`, `events/components/calendar_list.html`, `events/components/calendar_grid.html` | Phase 5: `{% tile_lines %}`. Highlights, playback, and calendar also keep the captions in the surface-captions decision. `cast_card.html` is unused. Do not wire it. |
 | `src/templates/lists/components/list_grid.html` | Phase 5: drop the `media-card-subtitle-always` class. Count and completion stay hardcoded and always visible. |
 | `src/app/models/manager.py` and surface queryset builders | Registry-driven prefetch. |
 | `src/api/fork_views_users.py` | Map the three absorbed names to the JSON. |
@@ -160,9 +162,10 @@ About 1 day.
 
 About 1.5 days.
 
-- `card_context` resolves the profile. `media_card.html` loops over field values under `from_grid` in place of the priority chain. Special cases (matched title, Recently Played `card_links`, discover overrides, next event, played chip) become fields or stay as surface overrides, decided per case while replacing.
-- Registry-driven prefetch in the queryset builders for the 11 surfaces.
+- `card_context` resolves the profile. A custom field list replaces the subtitle chain with the line loop. Special cases (matched title, Recently Played `card_links`, discover overrides, next event, played chip) stay as surface overrides.
+- Album library querysets prefetch artist credits only when the music profile enables `artist`. Other surfaces already load the cheap fields.
 - `media-card-subtitle-always` keys off `display`. The old preference read is removed from `media_card.html`.
+- A saved field list that matches the default keeps today's subtitle markup. A different list renders the line loop.
 - Update `test_media_card_contract.py` and the Recently Played pickle test.
 
 **Outcome:** With no saved profile, every shared surface renders the same markup as before (spot check library, home, list, search, discover). Writing `{"types": {"movie": {"fields": ["genres", "runtime"]}}}` to a test user shows genre and runtime lines on a movie tile in library and on home, and no extra queries appear on a page whose profiles enable only cheap fields.
@@ -184,7 +187,7 @@ About 1.5 days.
 About 1.5 days.
 
 - Music artist and album grids, search inline album cards, search online artist cards, `artist_relation_grid`, history card (runtime chip and checkmark become the `runtime` and `status` fields), `episode_row`, `media_card_list`.
-- These templates call `{% tile_metadata %}` and drop their own hard-coded text.
+- These templates call `{% tile_lines %}` and drop their own hard-coded subtitle text. History's status and runtime chips follow those fields.
 - The album screenshot case (history tile) is the acceptance check.
 
 **Outcome:** On History, Artist, Album, search music results, and the media tiles on a list page, a tile shows exactly the fields set for its media type, matching the Tiles preview, with the runtime chip controllable from the settings page. The lists index is unchanged in this phase.
@@ -196,11 +199,11 @@ About 1.5 days.
 - Person and cast on the live templates (`person_card_inline`, `person_filmography_card`, `episode_details`), stats highlight, active playback, calendar list rows and calendar agenda rows.
 - Add the `person` profile editor to the Tiles page.
 - `list_grid.html`: remove the subtitle-always class so item count and completion are always visible.
-- Drop `media_card_subtitle_display`, `progress_bar`, `hide_zero_rating` and the check constraint. API `PATCH` fans each present name out to every type. API `GET` omits a name whose types disagree. `show_media_score` reads the item's type profile. Regenerate `openapi.yaml`.
+- Drop `media_card_subtitle_display`, `progress_bar`, `hide_zero_rating` and the check constraint in `0138`, after `0137` has seeded the JSON. API `PATCH` fans each present name out to every type. API `GET` omits a name whose types disagree. Types whose default has no `progress` field do not vote on `progress_bar`. `show_media_score` reads the profile. OpenAPI stays `additionalProperties` and was not regenerated.
 - Update `docs/architecture/media-card.md`. Extend the contract test so a tile template that does not read the profile fails.
 - Run `scripts/test.sh` (fast suite), ruff, `check_migration_hygiene --strict`, and `scripts/replay_upgrade_matrix.sh` for the column drop.
 
-**Outcome:** `rg media_card_subtitle_display src --glob '!**/migrations/**'` only hits the API mapping. Every media tile in the inventory reads the profile. Lists-index cards show the item count with no hover class. `GET /api/v1/user/preferences/` returns each of the three old names when every type agrees and omits a name when they differ. `PATCH` of one name updates every type and leaves the other names alone. The fast suite and contract tests pass.
+**Outcome:** `rg media_card_subtitle_display src --glob '!**/migrations/**'` only hits the API mapping (`fork_views_users.py` and `tile_metadata.py`). Every media tile in the inventory reads the profile. Lists-index cards show the item count with no hover class. `GET /api/v1/user/preferences/` returns each of the three old names when every type agrees and omits a name when they differ. `PATCH` of one name updates every type and leaves the other names alone. The fast suite and contract tests pass.
 
 ## Risks
 
