@@ -29,9 +29,11 @@ If `joe` already exists, the password is left alone.
 
 Each account gets two rows for movie, anime, manga, game, book, comic, comic issue, board game, and podcast, plus:
 
-- Two TV shows (`Harbor Lights`, `Glass Orchard`), each with season 1 and episodes 1 and 3 marked completed, so show and season progress and last played have a value.
-- One music play, `Side A` by Mina Cole on `Room Tone`, with a track number. The artist and album use `tile-seed-` MusicBrainz ids, so they stay separate from real listening history.
-- A cast credit, Ada Voss as Night vendor, on both sample movies. That is what the person tile preview uses.
+- Two TV shows (`The Real Housewives of Beverly Hills`, `The Adventures of Rocky and Bullwinkle and Friends`), each with season 1 and two completed episodes, so show and season progress and last played have a value.
+- One music play, David Bowie's `The Rise and Fall of Ziggy Stardust and the Spiders From Mars`, track `Rock 'n' Roll Suicide`. The artist and album keep `tile-seed-` MusicBrainz ids, so they stay separate from real listening history.
+- A cast credit, Alejandro González Iñárritu as Director, on both sample movies. That is what the person tile preview uses.
+
+Titles and posters are real works (TMDB, AniList, Open Library, Steam, Comic Vine, iTunes, Cover Art Archive, Wikipedia) so the title-line settings have a long name and an image to show. The rows themselves stay `manual` / `tile-seed-*`.
 
 Sample items use source `manual` and media ids such as `tile-seed-movie-2` and `tile-seed-tv-2`. Genres, runtime, progress, score, dates, authors, and synopsis are filled in so each tile field has something to render.
 
