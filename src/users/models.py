@@ -462,6 +462,8 @@ class MetadataSourceDefaultChoices(models.TextChoices):
     HARDCOVER = Sources.HARDCOVER.value, Sources.HARDCOVER.label
     OPENLIBRARY = Sources.OPENLIBRARY.value, Sources.OPENLIBRARY.label
     GOOGLEBOOKS = Sources.GOOGLEBOOKS.value, Sources.GOOGLEBOOKS.label
+    COMICVINE = Sources.COMICVINE.value, Sources.COMICVINE.label
+    GCD = Sources.GCD.value, Sources.GCD.label
 
 
 class AnimeLibraryModeChoices(models.TextChoices):
@@ -908,6 +910,21 @@ class User(AbstractUser):
             ),
         ],
         help_text="Default metadata provider for Book details and search tabs.",
+    )
+    comic_metadata_source_default = models.CharField(
+        max_length=20,
+        default=MetadataSourceDefaultChoices.COMICVINE,
+        choices=[
+            (
+                MetadataSourceDefaultChoices.COMICVINE,
+                MetadataSourceDefaultChoices.COMICVINE.label,
+            ),
+            (
+                MetadataSourceDefaultChoices.GCD,
+                MetadataSourceDefaultChoices.GCD.label,
+            ),
+        ],
+        help_text="Default metadata provider for Comic details and search tabs.",
     )
     stats_split_tv_anime = models.BooleanField(
         default=False,
@@ -1495,6 +1512,15 @@ class User(AbstractUser):
                 ),
             ),
             models.CheckConstraint(
+                name="comic_metadata_source_default_valid",
+                condition=models.Q(
+                    comic_metadata_source_default__in=[
+                        MetadataSourceDefaultChoices.COMICVINE,
+                        MetadataSourceDefaultChoices.GCD,
+                    ],
+                ),
+            ),
+            models.CheckConstraint(
                 name="lists_sort_valid",
                 condition=models.Q(lists_sort__in=ListSortChoices.values),
             ),
@@ -1849,6 +1875,15 @@ class User(AbstractUser):
 
         return None
 
+    def task_result_filter(self):
+        """Match TaskResult rows whose kwargs carry this user's id."""
+        return (
+            Q(task_kwargs__contains=f"'user_id': {self.id},")
+            | Q(task_kwargs__contains=f"'user_id': {self.id}" + "}")
+            | Q(task_kwargs__contains=f'"user_id": {self.id},')
+            | Q(task_kwargs__contains=f'"user_id": {self.id}' + "}")
+        )
+
     def get_import_tasks(self):
         """Return import tasks history and schedules for the user."""
         result_task_names = {
@@ -1885,10 +1920,12 @@ class User(AbstractUser):
             "radarr": ["Import from Radarr", "Import from Radarr (Recurring)"],
             "sonarr": ["Import from Sonarr", "Import from Sonarr (Recurring)"],
             "mylar": ["Import from Mylar3", "Import from Mylar3 (Recurring)"],
+            "kapowarr": ["Import from Kapowarr", "Import from Kapowarr (Recurring)"],
             "audiobookshelf": [
                 "Import from Audiobookshelf",
                 "Import from Audiobookshelf (Recurring)",
             ],
+            "komga": ["Import from Komga", "Import from Komga (Recurring)"],
             "storyteller": [
                 "Import from Storyteller",
                 "Import from Storyteller (Recurring)",
@@ -1913,7 +1950,9 @@ class User(AbstractUser):
             "radarr": ["Import from Radarr (Recurring)"],
             "sonarr": ["Import from Sonarr (Recurring)"],
             "mylar": ["Import from Mylar3 (Recurring)"],
+            "kapowarr": ["Import from Kapowarr (Recurring)"],
             "audiobookshelf": ["Import from Audiobookshelf (Recurring)"],
+            "komga": ["Import from Komga (Recurring)"],
             "storyteller": ["Import from Storyteller (Recurring)"],
             "pocketcasts": ["Import from Pocket Casts (Recurring)"],
             "gpodder": ["Import from GPodder (Recurring)"],
@@ -1938,12 +1977,7 @@ class User(AbstractUser):
         }
         schedule_import_task_names = list(schedule_task_to_source)
 
-        task_result_filters = (
-            Q(task_kwargs__contains=f"'user_id': {self.id},")
-            | Q(task_kwargs__contains=f"'user_id': {self.id}" + "}")
-            | Q(task_kwargs__contains=f'"user_id": {self.id},')
-            | Q(task_kwargs__contains=f'"user_id": {self.id}' + "}")
-        )
+        task_result_filters = self.task_result_filter()
 
         # Get all task results for this user (last 7 days only).
         # Exclude stale PENDING records (created >30 min ago and never updated)
@@ -1992,6 +2026,7 @@ class User(AbstractUser):
             results.append(
                 {
                     "task": processed_task,
+                    "task_id": task.task_id,
                     "source": source,
                     "date": task.date_done,
                     "status": task.status,
