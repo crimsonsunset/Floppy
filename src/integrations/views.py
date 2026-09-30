@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import hashlib
 import hmac
 import json
 import logging
@@ -67,6 +68,8 @@ from integrations.imports.audiobookshelf import (
     AudiobookshelfAuthError,
     AudiobookshelfClient,
 )
+from integrations.imports.kapowarr import KapowarrClient
+from integrations.imports.komga import KomgaClient
 from integrations.imports.koreader import (
     KoreaderAuthError,
     KoreaderClient,
@@ -107,7 +110,9 @@ from integrations.models import (
     ExternalReferenceReviewStatus,
     GPodderAccount,
     JellyfinAccount,
+    KapowarrInstance,
     KoitoAccount,
+    KomgaAccount,
     KoreaderAccount,
     KoreaderDocumentLink,
     LastFMAccount,
@@ -149,6 +154,7 @@ RADARR_RECURRING_TASK_NAME = "Import from Radarr (Recurring)"
 JELLYFIN_PLAYBACK_REPORTING_MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 SONARR_RECURRING_TASK_NAME = "Import from Sonarr (Recurring)"
 MYLAR_RECURRING_TASK_NAME = "Import from Mylar3 (Recurring)"
+KAPOWARR_RECURRING_TASK_NAME = "Import from Kapowarr (Recurring)"
 GPODDER_RECURRING_TASK_NAME = "Import from GPodder (Recurring)"
 TRAKT_DEVICE_SESSION_KEY = "trakt_device_auth"
 
@@ -1212,12 +1218,18 @@ def plex_disable_watchlist(request):
 @require_POST
 def simkl_oauth(request):
     """View for initiating the SIMKL OAuth2 authorization flow."""
+    if not credentials.is_configured("simkl", request.user):
+        messages.error(
+            request,
+            "SIMKL needs your own Client ID and Client secret. "
+            "Add them in Settings > Metadata, then connect again.",
+        )
+        return _integration_redirect(request)
+
     redirect_uri = app_helpers.build_absolute_app_url(
         request,
         reverse("import_simkl_private"),
     )
-    url = "https://simkl.com/oauth/authorize"
-
     state = {
         "mode": request.POST["mode"],
         "frequency": request.POST["frequency"],
@@ -1226,11 +1238,30 @@ def simkl_oauth(request):
         "return_to": request.POST.get("next"),
     }
     state_token = secrets.token_urlsafe(32)
-    request.session[state_token] = state
-
-    return redirect(
-        f"{url}?client_id={credentials.get("simkl", "client_id")}&redirect_uri={redirect_uri}&response_type=code&state={state_token}",
+    query = (
+        f"client_id={credentials.get("simkl", "client_id")}&redirect_uri={redirect_uri}"
+        f"&response_type=code&state={state_token}"
     )
+
+    if request.POST.get("auth_version") == "v1":
+        # SIMKL apps made before 2026-09-18; AUTH V1 retires around April 2027
+        url = f"https://simkl.com/oauth/authorize?{query}"
+    else:
+        # AUTH V2 requires PKCE (S256)
+        code_verifier = secrets.token_urlsafe(64)
+        state["code_verifier"] = code_verifier
+        code_challenge = (
+            base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest())
+            .decode()
+            .rstrip("=")
+        )
+        url = (
+            f"https://simkl.com/oauth2/authorize?{query}"
+            f"&code_challenge={code_challenge}&code_challenge_method=S256"
+        )
+
+    request.session[state_token] = state
+    return redirect(url)
 
 
 @require_GET
@@ -1241,13 +1272,21 @@ def import_simkl_private(request):
         return _integration_redirect(request)
 
     redirect_uri = state_data.get("redirect_uri")
-    oauth_callback = simkl.get_token(request, redirect_uri=redirect_uri)
+    return_to = state_data.get("return_to")
+    try:
+        oauth_callback = simkl.get_token(
+            request,
+            redirect_uri=redirect_uri,
+            code_verifier=state_data.get("code_verifier"),
+        )
+    except helpers.MediaImportError as error:
+        messages.error(request, str(error))
+        return _integration_redirect(request, next_url=return_to)
     enc_token = helpers.encrypt(oauth_callback["access_token"])
 
     frequency = state_data["frequency"]
     mode = state_data["mode"]
     import_time = state_data["time"]
-    return_to = state_data.get("return_to")
 
     if frequency == "once":
         if _queue_task_or_message(request,
@@ -1267,6 +1306,12 @@ def import_simkl_private(request):
             import_time,
             "SIMKL",
             token=enc_token,
+            # AUTH V2 access tokens expire after 7 days; V1 has no refresh token
+            extra_kwargs=(
+                {"refresh_token": helpers.encrypt(oauth_callback["refresh_token"])}
+                if oauth_callback["refresh_token"]
+                else None
+            ),
         )
 
     return _integration_redirect(request, connected_slug="simkl", next_url=return_to)
@@ -1907,6 +1952,97 @@ def import_mylar(request):
 
 
 @require_POST
+def kapowarr_connect(request):
+    """Connect a new Kapowarr instance using base URL + API key."""
+    base_url = request.POST.get("base_url", "").strip()
+    api_key = request.POST.get("api_key", "").strip()
+    name = request.POST.get("name", "").strip()
+    if not base_url or not api_key:
+        messages.error(request, "Kapowarr base URL and API key are required.")
+        return _integration_redirect(request)
+
+    try:
+        KapowarrClient(base_url, api_key).healthcheck()
+    except helpers.MediaImportError as exc:
+        messages.error(request, f"Failed to connect to Kapowarr: {exc}")
+        return _integration_redirect(request)
+
+    try:
+        instance = _run_with_lock_retry(
+            "create Kapowarr instance",
+            lambda: KapowarrInstance.objects.create(
+                user=request.user,
+                name=name,
+                base_url=base_url,
+                api_key=helpers.encrypt(api_key),
+            ),
+        )
+    except IntegrityError:
+        messages.error(
+            request, "You already have a Kapowarr instance connected at this URL."
+        )
+        return _integration_redirect(request)
+
+    _ensure_arr_schedule(instance, KAPOWARR_RECURRING_TASK_NAME, "Kapowarr")
+    if _queue_task_or_message(request,
+        tasks.import_kapowarr, user_id=request.user.id, mode="new", instance_id=instance.id
+    ) is not False:
+        messages.success(
+            request,
+            "Connected Kapowarr. Initial import queued and recurring sync enabled.",
+        )
+    return _integration_redirect(request, connected_slug="kapowarr")
+
+
+@require_POST
+def kapowarr_disconnect(request):
+    """Disconnect one Kapowarr instance."""
+    from django_celery_beat.models import PeriodicTask
+
+    instance = get_object_or_404(
+        KapowarrInstance, pk=request.POST.get("instance_id"), user=request.user
+    )
+
+    def _disconnect():
+        PeriodicTask.objects.filter(
+            _periodic_task_filter_for_instance(instance.id),
+            task=KAPOWARR_RECURRING_TASK_NAME,
+        ).delete()
+        # Through the reconciling helper, so copies only Kapowarr created go too.
+        states = CollectionSourceState.objects.filter(
+            user=request.user, source="kapowarr", source_instance_id=instance.id
+        ).select_related("item")
+        for state in states:
+            remove_collection_source_state(
+                user=request.user,
+                item=state.item,
+                source="kapowarr",
+                source_instance_id=instance.id,
+            )
+        instance.delete()
+
+    _run_with_lock_retry("disconnect Kapowarr", _disconnect)
+    messages.info(request, "Disconnected Kapowarr.")
+    return redirect("import_data")
+
+
+@require_POST
+def import_kapowarr(request):
+    """Queue Kapowarr import and ensure recurring schedule exists."""
+    instance = get_object_or_404(
+        KapowarrInstance, pk=request.POST.get("instance_id"), user=request.user
+    )
+
+    queued = _queue_task_or_message(request,
+        tasks.import_kapowarr, user_id=request.user.id, mode="new", instance_id=instance.id
+    )
+    _ensure_arr_schedule(instance, KAPOWARR_RECURRING_TASK_NAME, "Kapowarr")
+    if queued is not False:
+        messages.info(request, "Kapowarr import queued.")
+    return redirect("import_data")
+
+
+@require_POST
 def sonarr_connect(request):
     """Connect a new Sonarr instance using base URL + API key."""
     base_url = request.POST.get("base_url", "").strip()
@@ -2195,24 +2331,22 @@ def jellyfin_playback_reporting_import(request):
     return redirect("integrations")
 
 
-def _ensure_audiobookshelf_schedule(user):
-    """Create or update the recurring Audiobookshelf import schedule for a user."""
+def _ensure_recurring_import_schedule(user, label, poll_interval_minutes):
+    """Create or update a user's recurring "Import from <label>" schedule."""
     from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
-    poll_interval_minutes = getattr(
-        settings, "AUDIOBOOKSHELF_POLL_INTERVAL_MINUTES", 15
-    )
     interval, _ = IntervalSchedule.objects.get_or_create(
         every=poll_interval_minutes,
         period=IntervalSchedule.MINUTES,
     )
     task_name = (
-        f"Import from Audiobookshelf for {user.username} "
+        f"Import from {label} for {user.username} "
         f"(every {poll_interval_minutes} minutes)"
     )
+    task = f"Import from {label} (Recurring)"
     existing_task = PeriodicTask.objects.filter(
-        task="Import from Audiobookshelf (Recurring)",
-        kwargs__contains=f'"user_id": {user.id}',
+        task=task,
+        **helpers.periodic_task_user_kwargs(user.id),
     ).first()
 
     if existing_task:
@@ -2235,11 +2369,20 @@ def _ensure_audiobookshelf_schedule(user):
 
     return PeriodicTask.objects.create(
         name=task_name,
-        task="Import from Audiobookshelf (Recurring)",
+        task=task,
         interval=interval,
         kwargs=json.dumps({"user_id": user.id}),
         start_time=timezone.now(),
         enabled=True,
+    )
+
+
+def _ensure_audiobookshelf_schedule(user):
+    """Create or update the recurring Audiobookshelf import schedule for a user."""
+    return _ensure_recurring_import_schedule(
+        user,
+        "Audiobookshelf",
+        getattr(settings, "AUDIOBOOKSHELF_POLL_INTERVAL_MINUTES", 15),
     )
 
 
@@ -2291,7 +2434,7 @@ def audiobookshelf_disconnect(request):
     def _disconnect():
         PeriodicTask.objects.filter(
             task="Import from Audiobookshelf (Recurring)",
-            kwargs__contains=f'"user_id": {request.user.id}',
+            **helpers.periodic_task_user_kwargs(request.user.id),
         ).delete()
         AudiobookshelfAccount.objects.filter(user=request.user).delete()
 
@@ -2315,6 +2458,91 @@ def import_audiobookshelf(request):
 
     if queued is not False:
         messages.info(request, "Audiobookshelf import queued.")
+    return redirect("import_data")
+
+
+def _komga_interval(request, default=15):
+    """Return the sync interval chosen in the Komga form, or ``default``."""
+    try:
+        minutes = int(request.POST.get("sync_interval_minutes", default))
+    except ValueError:
+        return default
+    return minutes if minutes in KomgaAccount.SYNC_INTERVAL_CHOICES else default
+
+
+@require_POST
+def komga_connect(request):
+    """Connect Komga using its server URL and an API key."""
+    base_url = request.POST.get("base_url", "").strip()
+    api_key = request.POST.get("api_key", "").strip()
+
+    if not base_url or not api_key:
+        messages.error(request, "Komga server URL and API key are required.")
+        return _integration_redirect(request)
+
+    try:
+        KomgaClient(base_url, api_key).healthcheck()
+    except Exception as exc:
+        messages.error(request, f"Failed to connect to Komga: {exc}")
+        return _integration_redirect(request)
+
+    interval = _komga_interval(request)
+
+    def _connect():
+        KomgaAccount.objects.update_or_create(
+            user=request.user,
+            defaults={
+                "base_url": base_url,
+                "api_key": helpers.encrypt(api_key),
+                "sync_interval_minutes": interval,
+                "connection_broken": False,
+                "last_error_message": "",
+            },
+        )
+        _ensure_recurring_import_schedule(request.user, "Komga", interval)
+
+    _run_with_lock_retry("connect Komga", _connect)
+    if _queue_task_or_message(
+        request, tasks.import_komga, user_id=request.user.id, mode="new"
+    ) is not False:
+        messages.success(request, "Connected Komga. Initial import queued.")
+    return _integration_redirect(request, connected_slug="komga")
+
+
+@require_POST
+def komga_disconnect(request):
+    """Disconnect Komga."""
+    from django_celery_beat.models import PeriodicTask
+
+    def _disconnect():
+        PeriodicTask.objects.filter(
+            task="Import from Komga (Recurring)",
+            **helpers.periodic_task_user_kwargs(request.user.id),
+        ).delete()
+        KomgaAccount.objects.filter(user=request.user).delete()
+
+    _run_with_lock_retry("disconnect Komga", _disconnect)
+    messages.info(request, "Disconnected Komga.")
+    return redirect("import_data")
+
+
+@require_POST
+def import_komga(request):
+    """Queue a Komga sync now and keep the recurring schedule in place."""
+    account = getattr(request.user, "komga_account", None)
+    if not account:
+        messages.error(request, "Connect Komga before importing.")
+        return redirect("import_data")
+
+    queued = _queue_task_or_message(
+        request, tasks.import_komga, user_id=request.user.id, mode="new"
+    )
+    _ensure_recurring_import_schedule(
+        request.user, "Komga", account.sync_interval_minutes
+    )
+
+    if queued is not False:
+        messages.info(request, "Komga sync queued.")
     return redirect("import_data")
 
 
@@ -2467,6 +2695,18 @@ def audiobookshelf_cover(request, token):
         )
         return _placeholder_image_response()
 
+    # The last good copy is served while fresh, and whenever ABS cannot answer
+    # (#1307), so a slow server no longer blanks every poster.
+    stored_key = f"abs-cover:{account_id}:{library_item_id}"
+    stored = image_cache.load_stored_cover(stored_key)
+    if stored is not None and stored[2]:
+        return image_cache.stored_cover_response(stored)
+
+    def fallback():
+        if stored is not None:
+            return image_cache.stored_cover_response(stored)
+        return _placeholder_image_response()
+
     try:
         api_token = helpers.decrypt(account.api_token)
     except Exception as error:
@@ -2477,7 +2717,7 @@ def audiobookshelf_cover(request, token):
             library_item_id,
             exception_summary(error),
         )
-        return _placeholder_image_response()
+        return fallback()
 
     backoff_key = f"abs_cover_backoff:{account_id}"
     if cache.get(backoff_key):
@@ -2487,7 +2727,7 @@ def audiobookshelf_cover(request, token):
             account_id,
             library_item_id,
         )
-        return _placeholder_image_response()
+        return fallback()
 
     cover_url = f"{account.base_url.rstrip('/')}/api/items/{library_item_id}/cover"
     try:
@@ -2507,7 +2747,7 @@ def audiobookshelf_cover(request, token):
             library_item_id,
             exception_summary(error),
         )
-        return _placeholder_image_response()
+        return fallback()
 
     try:
         if upstream.status_code != HTTPStatus.OK:
@@ -2518,7 +2758,7 @@ def audiobookshelf_cover(request, token):
                 account_id,
                 library_item_id,
             )
-            return _placeholder_image_response()
+            return fallback()
 
         content_type = (
             upstream.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
@@ -2534,7 +2774,7 @@ def audiobookshelf_cover(request, token):
                 account_id,
                 library_item_id,
             )
-            return _placeholder_image_response()
+            return fallback()
 
         try:
             content_length = int(upstream.headers.get("Content-Length", "0"))
@@ -2548,7 +2788,7 @@ def audiobookshelf_cover(request, token):
                 account_id,
                 library_item_id,
             )
-            return _placeholder_image_response()
+            return fallback()
 
         body = bytearray()
         oversized = False
@@ -2571,7 +2811,7 @@ def audiobookshelf_cover(request, token):
                 library_item_id,
                 exception_summary(error),
             )
-            return _placeholder_image_response()
+            return fallback()
     finally:
         upstream.close()
 
@@ -2583,7 +2823,7 @@ def audiobookshelf_cover(request, token):
             account_id,
             library_item_id,
         )
-        return _placeholder_image_response()
+        return fallback()
 
     body = bytes(body)
     # An upstream that declares nothing useful still has to prove it sent a
@@ -2598,9 +2838,10 @@ def audiobookshelf_cover(request, token):
                 account_id,
                 library_item_id,
             )
-            return _placeholder_image_response()
+            return fallback()
         content_type = sniffed
 
+    image_cache.store_cover(stored_key, body, content_type)
     response = HttpResponse(body, content_type=content_type)
     response["Cache-Control"] = "private, max-age=3600"
     response["X-Content-Type-Options"] = "nosniff"
@@ -2636,13 +2877,24 @@ def plex_cover(request, token):
     if account is None:
         return HttpResponseNotFound()
 
+    # Same last-good-copy rule as the Audiobookshelf proxy (#1307).
+    stored_key = f"plex-cover:{account_id}:{machine_identifier}:{thumb_path}"
+    stored = image_cache.load_stored_cover(stored_key)
+    if stored is not None and stored[2]:
+        return image_cache.stored_cover_response(stored)
+
+    def fallback():
+        if stored is not None:
+            return image_cache.stored_cover_response(stored)
+        return HttpResponseNotFound()
+
     uri, plex_token = plex_api.connection_for_machine(
         account.sections,
         machine_identifier,
         account.plex_token,
     )
     if not uri or not plex_token:
-        return HttpResponseNotFound()
+        return fallback()
 
     try:
         upstream = requests.get(
@@ -2653,24 +2905,24 @@ def plex_cover(request, token):
             verify=settings.PLEX_SSL_VERIFY,
         )
     except requests.RequestException:
-        return HttpResponseNotFound()
+        return fallback()
 
     try:
         if upstream.status_code != HTTPStatus.OK:
-            return HttpResponseNotFound()
+            return fallback()
 
         content_type = (
             upstream.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
         )
         if content_type not in PLEX_COVER_CONTENT_TYPES:
-            return HttpResponseNotFound()
+            return fallback()
 
         try:
             content_length = int(upstream.headers.get("Content-Length", "0"))
         except ValueError:
             content_length = 0
         if content_length > image_cache.MAX_IMAGE_BYTES:
-            return HttpResponseNotFound()
+            return fallback()
 
         body = bytearray()
         for chunk in upstream.iter_content(chunk_size=64 * 1024):
@@ -2678,11 +2930,13 @@ def plex_cover(request, token):
                 continue
             body.extend(chunk)
             if len(body) > image_cache.MAX_IMAGE_BYTES:
-                return HttpResponseNotFound()
+                return fallback()
     finally:
         upstream.close()
 
-    response = HttpResponse(bytes(body), content_type=content_type)
+    body = bytes(body)
+    image_cache.store_cover(stored_key, body, content_type)
+    response = HttpResponse(body, content_type=content_type)
     response["Cache-Control"] = "private, max-age=3600"
     return response
 
@@ -2711,7 +2965,7 @@ def _ensure_storyteller_schedule(user):
 
     existing_task = PeriodicTask.objects.filter(
         task=STORYTELLER_RECURRING_TASK_NAME,
-        kwargs__contains=f'"user_id": {user.id}',
+        **helpers.periodic_task_user_kwargs(user.id),
         enabled=True,
     ).first()
     if existing_task:
@@ -2847,7 +3101,7 @@ def storyteller_disconnect(request):
     def _disconnect():
         PeriodicTask.objects.filter(
             task=STORYTELLER_RECURRING_TASK_NAME,
-            kwargs__contains=f'"user_id": {request.user.id}',
+            **helpers.periodic_task_user_kwargs(request.user.id),
         ).delete()
         StorytellerAccount.objects.filter(user=request.user).delete()
 
@@ -3063,7 +3317,7 @@ def koreader_disconnect(request):
     def _disconnect():
         PeriodicTask.objects.filter(
             task=KOREADER_IMPORT_TASK_NAME,
-            kwargs__contains=f'"user_id": {request.user.id}',
+            **helpers.periodic_task_user_kwargs(request.user.id),
         ).delete()
         KoreaderDocumentLink.objects.filter(user=request.user).delete()
         KoreaderAccount.objects.filter(user=request.user).delete()
@@ -3112,7 +3366,7 @@ def _ensure_stremio_schedule(user):
 
     existing_task = PeriodicTask.objects.filter(
         task=STREMIO_RECURRING_TASK_NAME,
-        kwargs__contains=f'"user_id": {user.id}',
+        **helpers.periodic_task_user_kwargs(user.id),
         enabled=True,
     ).first()
     if existing_task:
@@ -3200,7 +3454,7 @@ def stremio_disconnect(request):
     def _disconnect():
         PeriodicTask.objects.filter(
             task=STREMIO_RECURRING_TASK_NAME,
-            kwargs__contains=f'"user_id": {request.user.id}',
+            **helpers.periodic_task_user_kwargs(request.user.id),
         ).delete()
         StremioAccount.objects.filter(user=request.user).delete()
 
@@ -3613,7 +3867,7 @@ def pocketcasts_connect(request):
             # Set up 2-hour recurring import if it doesn't exist
             existing_task = PeriodicTask.objects.filter(
                 task="Import from Pocket Casts (Recurring)",
-                kwargs__contains=f'"user_id": {request.user.id}',
+                **helpers.periodic_task_user_kwargs(request.user.id),
                 enabled=True,
             ).first()
 
@@ -3679,7 +3933,7 @@ def pocketcasts_disconnect(request):
         # Delete periodic import task if it exists
         PeriodicTask.objects.filter(
             task="Import from Pocket Casts (Recurring)",
-            kwargs__contains=f'"user_id": {request.user.id}',
+            **helpers.periodic_task_user_kwargs(request.user.id),
         ).delete()
 
         # Clear all credentials (full disconnect)
@@ -3743,7 +3997,7 @@ def gpodder_connect(request):
 
             existing_task = PeriodicTask.objects.filter(
                 task=GPODDER_RECURRING_TASK_NAME,
-                kwargs__contains=f'"user_id": {request.user.id}',
+                **helpers.periodic_task_user_kwargs(request.user.id),
                 enabled=True,
             ).first()
             if existing_task:
@@ -3795,7 +4049,7 @@ def gpodder_disconnect(request):
     def _disconnect():
         PeriodicTask.objects.filter(
             task=GPODDER_RECURRING_TASK_NAME,
-            kwargs__contains=f'"user_id": {request.user.id}',
+            **helpers.periodic_task_user_kwargs(request.user.id),
         ).delete()
         GPodderAccount.objects.filter(user=request.user).delete()
 
@@ -3961,7 +4215,7 @@ def _ensure_koito_poll_schedule(user):
 
     existing_task = PeriodicTask.objects.filter(
         task=tasks.KOITO_POLL_TASK_NAME,
-        kwargs__contains=f'"user_id": {user.id}',
+        **helpers.periodic_task_user_kwargs(user.id),
         enabled=True,
     ).first()
     if existing_task:
@@ -4037,7 +4291,7 @@ def koito_disconnect(request):
     def _disconnect():
         PeriodicTask.objects.filter(
             task=tasks.KOITO_POLL_TASK_NAME,
-            kwargs__contains=f'"user_id": {request.user.id}',
+            **helpers.periodic_task_user_kwargs(request.user.id),
         ).delete()
         KoitoAccount.objects.filter(user=request.user).delete()
 
@@ -4110,7 +4364,7 @@ def import_pocketcasts(request):
 
     existing_task = PeriodicTask.objects.filter(
         task="Import from Pocket Casts (Recurring)",
-        kwargs__contains=f'"user_id": {request.user.id}',
+        **helpers.periodic_task_user_kwargs(request.user.id),
         enabled=True,
     ).first()
 
@@ -4186,7 +4440,7 @@ def import_gpodder(request):
 
     existing_task = PeriodicTask.objects.filter(
         task=GPODDER_RECURRING_TASK_NAME,
-        kwargs__contains=f'"user_id": {request.user.id}',
+        **helpers.periodic_task_user_kwargs(request.user.id),
         enabled=True,
     ).first()
 

@@ -549,6 +549,12 @@ else:
             "OPTIONS": {
                 "timeout": SQLITE_BUSY_TIMEOUT_SECONDS,
             },
+            # Reuse a thread's connection across requests instead of opening
+            # one (plus the PRAGMAs below) for every request. Idle autocommit
+            # connections hold no read transaction, so WAL checkpoints are not
+            # held back. Replacing db.sqlite3 already requires stopping Floppy.
+            "CONN_MAX_AGE": 600,
+            "CONN_HEALTH_CHECKS": True,
         },
     }
 
@@ -1192,7 +1198,6 @@ SHARED_DEFAULT_CREDENTIALS = {
     "IGDB_ID": "8wqmm7x1n2xxtnz94lb8mthadhtgrt",
     "BGG_API_TOKEN": "92f43ab1-d1d5-4e18-8b82-d1f56dc12927",
     "COMICVINE_API": "cdab0706269e4bca03a096fbc39920dadf7e4992",
-    "SIMKL_ID": "a973e57e85d94068315d5ac29669d85da8abc0fb7aff1d22e00e04bdf1882578",
 }
 
 TMDB_API = config(
@@ -1299,6 +1304,11 @@ COMICVINE_API = config(
     ),
 )
 
+# Grand Comics Database login. No default: GCD limits anonymous API access to
+# 30 requests an hour, and a login is tied to one person's account.
+GCD_USERNAME = config("GCD_USERNAME", default=secret("GCD_USERNAME_FILE", ""))
+GCD_PASSWORD = config("GCD_PASSWORD", default=secret("GCD_PASSWORD_FILE", ""))
+
 TRAKT_API = config(
     "TRAKT_API",
     default=secret(
@@ -1331,11 +1341,14 @@ ANILIST_SECRET = config(
     ),
 )
 
+# No shared SIMKL default: the token exchange needs the app's secret, which
+# cannot ship, and a bundled ID without it only fails after the user approves
+# on SIMKL (#1318). Operators or users supply both.
 SIMKL_ID = config(
     "SIMKL_ID",
     default=secret(
         "SIMKL_ID_FILE",
-        SHARED_DEFAULT_CREDENTIALS["SIMKL_ID"],
+        "",
     ),
 )
 SIMKL_SECRET = config(
@@ -1684,6 +1697,12 @@ CELERY_TASK_ROUTES = {
         "queue": "interactive",
         "priority": CELERY_TASK_PRIORITY_STATISTICS_SYNC,
     },
+    # Rebuilds a talent section the viewer already sees a stale copy of; same
+    # priority as the sync so webhook scrobbles still run first.
+    "Refresh statistics talent fragment": {
+        "queue": "interactive",
+        "priority": CELERY_TASK_PRIORITY_STATISTICS_SYNC,
+    },
     # Cheap (one query, then enqueues). On the interactive worker so a long
     # import on the background worker cannot delay recovery of lost syncs.
     "Reconcile statistics sync": {
@@ -1726,9 +1745,11 @@ CELERY_TASK_ROUTES = {
     "Import from Radarr (Recurring)": {"priority": CELERY_TASK_PRIORITY_FOLLOWUP},
     "Import from Sonarr (Recurring)": {"priority": CELERY_TASK_PRIORITY_FOLLOWUP},
     "Import from Mylar3 (Recurring)": {"priority": CELERY_TASK_PRIORITY_FOLLOWUP},
+    "Import from Kapowarr (Recurring)": {"priority": CELERY_TASK_PRIORITY_FOLLOWUP},
     "Import from Audiobookshelf (Recurring)": {
         "priority": CELERY_TASK_PRIORITY_FOLLOWUP,
     },
+    "Import from Komga (Recurring)": {"priority": CELERY_TASK_PRIORITY_FOLLOWUP},
     "Import from Pocket Casts (Recurring)": {"priority": CELERY_TASK_PRIORITY_FOLLOWUP},
     "Import from GPodder (Recurring)": {"priority": CELERY_TASK_PRIORITY_FOLLOWUP},
     "Migrate TV shows to preferred metadata provider": {
