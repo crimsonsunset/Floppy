@@ -26,7 +26,7 @@ def seed_tile_metadata(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("users", "0137_add_gcd_source"),
+        ("users", "0142_rating_scale_disabled"),
     ]
 
     operations = [
