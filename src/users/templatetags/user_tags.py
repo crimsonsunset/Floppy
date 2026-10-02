@@ -136,6 +136,10 @@ SOURCES_CONFIG = {
         "name": "AniList",
         "logo": static("img/anilist-logo.svg"),
     },
+    "mangabaka": {
+        "name": "MangaBaka",
+        "logo": static("img/mangabaka-logo.png"),
+    },
     "simkl": {
         "name": "SIMKL",
         "logo": static("img/simkl-logo.png"),
@@ -195,6 +199,10 @@ SOURCES_CONFIG = {
     "storyteller": {
         "name": "Storyteller",
         "logo": static("img/storyteller-logo.svg"),
+    },
+    "kavita": {
+        "name": "Kavita",
+        "logo": static("img/kavita-logo.svg"),
     },
     "komga": {
         "name": "Komga",

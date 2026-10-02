@@ -21,9 +21,11 @@ from integrations.imports import (
     imdb,
     jellyfin_playback_reporting,
     kapowarr,
+    kavita,
     kitsu,
     komga,
     mal,
+    mangabaka,
     mdblist,
     mylar,
     plex,
@@ -204,12 +206,19 @@ def _queue_post_import_collection_update(user_id, importer_func):
 
 
 @shared_task(name="Import from Trakt")
-def import_trakt(user_id, mode, token=None, username=None):
+def import_trakt(user_id, mode, token=None, username=None, redirect_uri=None):
     """Celery task for importing media data from Trakt.
 
     Can import using either OAuth (token provided) or public username.
     """
-    return import_media(trakt.importer, token, user_id, mode, username)
+    return import_media(
+        trakt.importer,
+        token,
+        user_id,
+        mode,
+        username,
+        redirect_uri=redirect_uri,
+    )
 
 
 @shared_task(name="Import from MDBList")
@@ -268,6 +277,12 @@ def import_anilist(user_id, mode, token=None, username=None):
 def import_kitsu(username, user_id, mode):
     """Celery task for importing anime and manga data from Kitsu."""
     return import_media(kitsu.importer, username, user_id, mode)
+
+
+@shared_task(name="Import from MangaBaka")
+def import_mangabaka(token, user_id, mode):
+    """Celery task for importing a MangaBaka library from an API token."""
+    return import_media(mangabaka.importer, token, user_id, mode)
 
 
 # Task name stays "Import from Yamtrack": it is persisted in celery result
@@ -393,6 +408,13 @@ def import_goodreads_dotted(file, user_id, mode):
 def import_hardcover(file, user_id, mode):
     """Celery task for importing media data from Hardcover."""
     return _run_file_import(hardcover.importer, file, user_id, mode)
+
+
+@shared_task(name="Import from Hardcover Account")
+def import_hardcover_account(user_id, mode="new", username=None):
+    """Sync the user's Hardcover library through its official API."""
+    del username
+    return import_media(hardcover.sync_importer, None, user_id, mode)
 
 
 @shared_task(name="Import from StoryGraph")
@@ -612,6 +634,18 @@ def import_audiobookshelf(user_id, mode="new"):
 def import_audiobookshelf_recurring(user_id):
     """Recurring import task for Audiobookshelf."""
     return import_media(audiobookshelf.importer, None, user_id, "new")
+
+
+@shared_task(name="Import from Kavita")
+def import_kavita(user_id, mode="new"):
+    """Celery task for importing manga, comic and book progress from Kavita."""
+    return import_media(kavita.importer, None, user_id, mode)
+
+
+@shared_task(name="Import from Kavita (Recurring)")
+def import_kavita_recurring(user_id):
+    """Recurring import task for Kavita."""
+    return import_media(kavita.importer, None, user_id, "new")
 
 
 @shared_task(name="Import from Komga")

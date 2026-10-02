@@ -136,6 +136,20 @@ The **Canonical upstream SHA(s)** column is the machine-audited inventory for `8
 | 67 | `791d800c` | Overflow-safe unknown-date sentinels | **Pending** | [#648](https://github.com/dannyvfilms/Floppy/issues/648) owns safe helpers and extreme-offset tests. | P0 / Phase 3 |
 | 68 | `e2ed720d` | Repair timezone shift/SQLite overflow in date truncation | **Discarded (D4)** | Floppy never landed Yamtrack's faulty truncation migration, so there is no Floppy-created timezone shift or overflow to repair. Current importers preserve precision and current forms edit it safely. | — |
 
+## Parent Floppy sync (dannyvfilms/Floppy)
+
+This fork was brought level with `dannyvfilms/Floppy:latest` by a merge, not commit-by-commit review. It is outside the Yamtrack ledger above and is recorded as one grouped outcome.
+
+| Field | Value |
+|---|---|
+| Decision | **Adapted** (merge with manual conflict resolution) |
+| Parent tip | `506617e0e52a843bd1ab0a7298e5b58db04795e2` |
+| Merge base | `8fd5fc2e95ee3e66e1dbb6e792daa069c39c8a2e` |
+| Range | 164 parent commits, 229 files |
+| Differences | Fork's `tile_metadata` replaces the parent's `hide_zero_rating` and `progress_bar` user fields (fields stay dropped). Parent's `show_recommendations`, `show_discover`, `ratings_enabled` and rating-scale changes are kept. |
+| Migrations | Parent and fork migrations joined by `users/0143` and `app/0195` merge migrations. Parent migration files were not edited. |
+| Validation | `makemigrations --check`, `check_migration_hygiene --strict`, `ruff` pass. Test suite pending. |
+
 ## Review and delivery rules
 
 1. Update this ledger before opening implementation for a newly reviewed upstream batch.
