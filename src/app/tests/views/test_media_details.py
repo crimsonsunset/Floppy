@@ -1881,7 +1881,7 @@ class MediaDetailsViewTests(TestCase):
 
         self.assertContains(response, "Bass House")
 
-def test_music_track_details_lists_play_history_with_origin_url(self):
+    def test_music_track_details_lists_play_history_with_origin_url(self):
         artist = Artist.objects.create(name="Play Artist")
         album = Album.objects.create(title="Play Album", artist=artist)
         track = Track.objects.create(album=album, title="Track One")
