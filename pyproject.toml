@@ -204,4 +204,4 @@ concurrency = ["multiprocessing"]
 # built with it drops every later test. ctrace keeps one context per test.
 core = "ctrace"
 dynamic_context = "test_function"
-omit = ["*/migrations/*", "*/tests/*", "*/__init__.py", "*/admin.py"]
+omit = ["*/migrations/*", "*/tests/*", "*/__init__.py", "*/admin.py", "/tmp/*"]
