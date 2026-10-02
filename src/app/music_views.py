@@ -98,12 +98,19 @@ def _nonempty_genre_names(genres):
     return names
 
 
+def _album_display_genres(album):
+    """Return album genres, or the artist's when the album has none."""
+    if album is None:
+        return []
+    return sync_services._music_item_direct_genres(album)
+
+
 def _track_page_genres(track):
-    """Return track genres, or the album's genres when the track has none."""
+    """Return track genres, then the album's, then the artist's."""
     track_genres = _nonempty_genre_names(track.genres)
     if track_genres:
         return track_genres
-    return _nonempty_genre_names(getattr(track.album, "genres", None))
+    return _album_display_genres(getattr(track, "album", None))
 
 
 def _safe_origin_url(value):
@@ -112,6 +119,30 @@ def _safe_origin_url(value):
     if text.lower().startswith(("https://", "http://")):
         return text
     return ""
+
+
+def _play_link_label(url):
+    """Return the play-link label for a SoundCloud or Spotify URL."""
+    host = (url or "").lower()
+    if "soundcloud.com" in host:
+        return "SoundCloud"
+    if "spotify.com" in host:
+        return "Spotify"
+    return ""
+
+
+def _external_play_links(tracks_with_data):
+    """Return one play chip per distinct SoundCloud or Spotify URL on this album."""
+    links = {}
+    for track_data in tracks_with_data:
+        url = track_data.get("origin_url") or ""
+        label = _play_link_label(url)
+        if not label:
+            continue
+        if label in links and links[label] != url:
+            label = track_data["track"].title or url
+        links.setdefault(label, url)
+    return links
 
 
 def _music_entry_for_track(user, track):
@@ -823,6 +854,10 @@ def _render_music_artist_details(request, artist):
         genre_chips = [g["name"].title() for g in genres[:6]]
     elif tags:
         genre_chips = [t["name"].title() for t in tags[:6]]
+    else:
+        from app.providers import musicbrainz
+
+        genre_chips = musicbrainz._normalize_musicbrainz_genre_names(artist.genres)
 
     collection_stats = get_artist_collection_stats(request.user, artist)
     notes_entry = artist_tracker if artist_tracker and artist_tracker.notes else None
@@ -1067,10 +1102,15 @@ def _render_music_album_details(request, artist, album):
         if music_entry and music_entry.item_id:
             collection_entry = collection_entries_by_item_id.get(music_entry.item_id)
 
+        origin_url = _safe_origin_url(
+            getattr(music_entry, "origin_url", "") if music_entry else "",
+        )
         tracks_with_data.append(
             {
                 "track": track,
                 "music": music_entry,
+                "origin_url": origin_url,
+                "origin_label": _play_link_label(origin_url),
                 "history": (
                     list(music_entry.history.all().order_by("-end_date"))
                     if music_entry
@@ -1149,6 +1189,7 @@ def _render_music_album_details(request, artist, album):
     detail_link_sections = view_barrel._build_detail_link_sections(
         {
             "source_url": album_details.get("musicbrainz_url", ""),
+            "external_links": _external_play_links(tracks_with_data),
         },
         MediaTypes.MUSIC.value,
         Sources.MUSICBRAINZ.value,
@@ -1172,11 +1213,12 @@ def _render_music_album_details(request, artist, album):
             or f"album-{album.id}"
         ),
     ).first()
+    album_genres = _album_display_genres(album)
     detail_tag_sections = _build_detail_tag_sections(
         {},
         detail_item,
         request.user,
-        fallback_genres=album.genres,
+        fallback_genres=album_genres,
         fallback_implied_genres=album.implied_genres,
         genre_list_media_type=MediaTypes.MUSIC.value,
     )
@@ -1187,6 +1229,7 @@ def _render_music_album_details(request, artist, album):
         "media_type": MediaTypes.MUSIC.value,
         "artist": artist or album.artist,
         "album": album,
+        "album_genres": album_genres,
         "album_display_image": album_display_image,
         "media": {
             "media_type": MediaTypes.MUSIC.value,

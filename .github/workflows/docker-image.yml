@@ -28,8 +28,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: dannyvfilms/floppy
-  LEGACY_IMAGE_NAME: dannyvfilms/yamtrack
+  IMAGE_NAME: crimsonsunset/floppy
 
 jobs:
   test:
@@ -228,12 +227,8 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          # Dual-publish during the rename grace period: the legacy path keeps
-          # receiving identical tags so pre-rename deployments still get
-          # updates. Drop the second line once traffic to it has died off.
           images: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-            ${{ env.REGISTRY }}/${{ env.LEGACY_IMAGE_NAME }}
           tags: |
             type=ref,event=pr
             type=semver,pattern={{version}}
