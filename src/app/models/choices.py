@@ -24,6 +24,7 @@ class Sources(models.TextChoices):
     STORYTELLER = "storyteller", "Storyteller"
     PLEX = "plex", "Plex"
     MANUAL = "manual", gettext_noop("Manual")
+    YOUTUBE = "youtube", "YouTube"
 
 
 class MediaTypes(models.TextChoices):
@@ -42,6 +43,7 @@ class MediaTypes(models.TextChoices):
     BOARDGAME = "boardgame", gettext_noop("Board Game")
     MUSIC = "music", gettext_noop("Music")
     PODCAST = "podcast", gettext_noop("Podcast")
+    VIDEO = "video", gettext_noop("Video")
 
 
 class ProviderMetadataStatus(models.TextChoices):
