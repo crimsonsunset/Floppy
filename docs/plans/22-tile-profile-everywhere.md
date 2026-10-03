@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Gate | 3 (AC met) |
+| Gate | 5 (shipped) |
 | Ticket | 22 |
 | Branch | feature/22-tile-profile-everywhere |
 | Repos | floppy |
