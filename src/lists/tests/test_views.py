@@ -2451,7 +2451,6 @@ class ListDetailViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context["items"]), 1)
-        self.assertContains(response, "S01 E01")
 
     @patch.object(get_user_model(), "update_preference")
     @patch.object(CustomList, "user_can_view")
@@ -2460,7 +2459,7 @@ class ListDetailViewTests(TestCase):
         mock_user_can_view,
         mock_update_preference,
     ):
-        """Episode list cards should still show season art and Sxx Exx without tracking rows."""
+        """Episode list cards show season art, and Sxx Exx when the episode profile asks for it."""
         mock_update_preference.side_effect = ["date_added", None]
         mock_user_can_view.return_value = True
 
@@ -2491,12 +2490,25 @@ class ListDetailViewTests(TestCase):
             item=episode_item,
         )
 
+        self.user.tile_metadata = {
+            "version": 1,
+            "types": {
+                "episode": {
+                    "display": "always",
+                    "fields": ["episode_code"],
+                    "lines": [{"fields": ["episode_code"], "display": "dormant"}],
+                    "options": {"rating": {"hide_zero": False}},
+                }
+            },
+        }
+        self.user.save(update_fields=["tile_metadata"])
+
         response = self.client.get(reverse("list_detail", args=[episode_list.id]))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "S01 E01")
         self.assertContains(response, "http://example.com/season.jpg")
-        self.assertContains(response, "media-card-subtitle-always")
+        self.assertContains(response, "media-card-line-dormant")
 
     @patch.object(get_user_model(), "update_preference")
     @patch.object(CustomList, "user_can_view")

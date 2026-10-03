@@ -18,7 +18,6 @@ class CardSurface:
     show_release_year_placeholder: bool = True
     show_next_event_chip: bool = False
     show_next_event_subtitle: bool = False
-    show_episode_identity: bool = False
     hover_action_mode: str = "standard"
     is_recommend_mode: bool = False
     secondary_color: bool = False
@@ -30,10 +29,10 @@ SURFACES = {
     "related": CardSurface(),
     "seasons": CardSurface(),
     "list_recommendations": CardSurface(),
-    # Upcoming shelves lead with the next release instead of the status.
+    # Upcoming shelves add the next release under the tile profile.
     "home": CardSurface(show_next_event_chip=True, show_next_event_subtitle=True),
-    # A list can hold single episodes; S01E02 says which one.
-    "list": CardSurface(show_episode_identity=True),
+    # Episode code is a profile field, so a list does not force S01E02.
+    "list": CardSurface(),
     # Provider results are not saved items, so there is no release year to load.
     "search": CardSurface(show_release_year_placeholder=False),
     # Picking an item inside a modal: a click previews it, no hover actions.
@@ -75,7 +74,6 @@ CARD_VALUES = frozenset(
         "collection_completeness",
         "use_podcast_show",
         "podcast_show",
-        "show_played_chip",
         "active",
     },
 )

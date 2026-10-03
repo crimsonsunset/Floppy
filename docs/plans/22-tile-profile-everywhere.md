@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Gate | 2 (plan ready) |
+| Gate | 3 (AC met) |
 | Ticket | 22 |
 | Branch | feature/22-tile-profile-everywhere |
 | Repos | floppy |
@@ -53,6 +53,7 @@ Rows marked "owner" were decided in the scoping conversation. Rows marked "call"
 | Recently-played chip | Remove it. The profile's Last played field is the timestamp | Asked | owner |
 | Profile key for music shelves | `music` for tracks, albums, artists and recent albums. No new key | The registry has no album or artist profile. Home album shells already use `media_type=music` | call |
 | Adapters | Home album, artist, recent-album and podcast-show adapters expose the attributes the profile fields read (artist, album, release year, runtime, last played, genres) | The profile renders what the item or adapter has. Today those adapters only carry `card_subtitle_text` | call |
+| `home_music_card` | Removed, including the album and artist edit button. That button follows `media.album`, then `media.artist` | A track row that has an album uses the album editor. Chosen at the fidelity pass | owner |
 | Episode cards on TV and anime recently-unrated | Use the `episode` profile and drop the forced show/episode string | The `episode` profile already has `show_name` and `episode_code` | call |
 | `subtitle_override` on Home Planning-only | Drop it. Release year is a profile field | The override shows the release date only | call |
 | Next-event subtitle (Upcoming shelves) | Keep as an extra line after the profile | Upcoming shelves lead with the next release. The profile has no such field | call |
@@ -90,7 +91,7 @@ profile lines (tile_use_lines)
   + hidden-on date          (discover_hidden)
 ```
 
-`home_music_card`, `show_episode_identity`, `use_podcast_show` and `show_played_chip` stop deciding the subtitle. The first and last of those go away entirely. `subtitle_override` only survives on Discover surfaces.
+`home_music_card`, `show_episode_identity`, `use_podcast_show` and `show_played_chip` no longer decide the subtitle. `home_music_card` and `show_played_chip` are gone. The album and artist edit button follows `media.album`, then `media.artist`. `subtitle_override` survives only as the hidden-on date. Discover no longer passes the release date through it.
 
 The profile can only show what the card's object has. Library tracks and TV items already carry it. The Home album, artist, recent-album and podcast-show adapters (`_AlbumHomeAdapter`, `_ArtistHomeAdapter`, `_RecentAlbumAdapter`, `_PodcastShowHomeAdapter`) are thin shells, so they need the attributes `tile_lines()` reads. Phase 2 is that work, and it is the risky part.
 
@@ -116,6 +117,8 @@ The profile can only show what the card's object has. Library tracks and TV item
 - Seed one Recently Played item per type, and one music play with a real album, so every bypass has something to render.
 - Load Home and record, for each type, which branch won.
 
+**Status:** the template chain on this branch matched the digest above, so the table stands. The seeded Home pass is QA.
+
 **Outcome:** a written table in this doc of type by row by winning branch on the seeded Home, matching the digest above. Any row that disagrees amends the plan.
 
 ### Phase 2: the chain and the adapters (about 1 day)
@@ -124,12 +127,16 @@ The profile can only show what the card's object has. Library tracks and TV item
 - Remove `show_played_chip` and the `home_music_card` and `show_episode_identity` branches and their callers.
 - Give the four Home adapters the attributes the profile fields read. Recently-unrated TV and anime episode cards use the `episode` profile.
 
+**Status:** done. The played-at chip, the forced episode string, and the hardcoded music and podcast subtitle are gone. Adapters carry artist, release date, and genres.
+
 **Outcome:** on the seeded Home, Music Recently Played, Music albums, Music artists, Movies Recently Played, TV Recently Played and a podcast show shelf each show their type's profile lines, and none shows a play-count chip.
 
 ### Phase 3: other surfaces (about 4 hrs)
 
 - Discover, Discover hidden, list episodes and the Planning-only shelf render the profile first. Extra lines follow.
 - Update `media-card.md` so the surface table lists the extra lines and the rule.
+
+**Status:** done. Discover keeps match percent and provenance under the profile and no longer passes the release date as the subtitle. Hidden cards still pass the hidden-on date, under the profile. `media-card.md` states the rule.
 
 **Outcome:** a Discover card for a movie shows the Movie profile lines and the match percent under them. A list holding a single episode shows the Episode profile with `episode_code`, not a forced `S01E02` line.
 
@@ -140,6 +147,8 @@ The profile can only show what the card's object has. Library tracks and TV item
 - Browser QA at 1280 and 390 widths, light and dark, with before and after screenshots of Home, Discover and a list.
 - `scripts/test.sh` on the touched labels, `ruff check src`.
 
+**Status:** template order, the album Home card, the episode list card, and ruff are done. Artist, recent-album, and podcast shelves use the same profile path and are not each rendered as their own Home page test. Browser screenshots are QA.
+
 **Outcome:** the Phase 1 table, rerun, shows the profile as the winner for every row. Targeted tests and ruff are clean.
 
 ## Key files referenced
@@ -148,9 +157,10 @@ The profile can only show what the card's object has. Library tracks and TV item
 |---|---|
 | `src/templates/app/components/media_card.html` | Subtitle chain, lines 459 to 518. |
 | `src/app/card_surfaces.py` | Surface flags and `_tile_render_context`. |
-| `src/users/tile_metadata.py` | Registry, `uses_line_renderer()`, `tile_lines()`. |
+| `src/users/tile_metadata.py` | Registry, `uses_line_renderer()`, `tile_lines()`. Genres also read the adapter. |
+| `src/app/templatetags/app_tags.py` | `media_type_readable_plural` includes video, so a list page does not crash on that type. |
 | `src/users/home_screen.py` | Row builders and the four Home adapters. |
-| `src/app/media_list_views.py` | Podcast list adapter that also sets `home_music_card`. |
+| `src/app/media_list_views.py` | Podcast list adapter exposes the show's genres. It no longer sets `home_music_card`. |
 | `docs/architecture/media-card.md` | Surface contract. |
 | `docs/plans/11-tile-metadata-settings.md` | The feature this completes. |
 

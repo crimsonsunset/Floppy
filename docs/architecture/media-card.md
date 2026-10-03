@@ -49,12 +49,12 @@ and untracked items keep the plain read-only rating. `update_media_score` return
 | Surface | Differs from the default | Why |
 |---|---|---|
 | `library`, `collection`, `related`, `seasons`, `list_recommendations` | Nothing | |
-| `home` | Next-event chip and subtitle | Upcoming shelves lead with the next release |
-| `list` | S01E02 subtitle on episodes | A list can hold single episodes |
+| `home` | Next-event chip, and a next-release line under the profile | Upcoming shelves add the next release. They do not replace the profile |
+| `list` | Nothing | Episode code is a profile field, not a forced S01E02 line |
 | `search` | No release-year placeholder | Provider results are not saved items |
 | `search_modal` | Click previews, no hover actions, darker surface | Picking an item inside a modal |
-| `discover` | No status chip, Discover hover actions | Candidates are untracked by definition |
-| `discover_hidden` | No status chip | The subtitle is the date it was hidden |
+| `discover` | No status chip, Discover hover actions. Match percent and provenance follow the profile | Candidates are untracked by definition |
+| `discover_hidden` | No status chip. The hidden-on date follows the profile | The date is extra. It does not replace the profile |
 
 The library alone shows a "No Status" chip on untracked entries. That comes from its
 own entry wrapper (`media_list_views.MediaListEntry.is_statusless`), which serves the
@@ -96,7 +96,9 @@ Known remaining duplication:
 
 Subtitle lines come from `User.tile_metadata`, one profile per media type plus `person`.
 `src/users/tile_metadata.py` is the registry. `card_context` resolves the profile for the
-shared card. Hand-rolled tiles call `{% tile_lines %}`. `display` is `hover` or `always`.
+shared card. On that card the profile renders first. A next release, a Discover match
+percent, its provenance, and a hidden-on date may follow it. They do not replace it.
+Hand-rolled tiles call `{% tile_lines %}`. `display` is `hover` or `always`.
 The poster progress bar follows the `progress` field. A zero score is hidden per type
 via `options.rating.hide_zero`.
 

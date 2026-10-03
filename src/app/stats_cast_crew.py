@@ -393,7 +393,6 @@ def build_media_strip_row(
         "loaded_count": len(items),
         "card_width_class": "w-32 sm:w-36",
         "grid_class": "",
-        "show_played_chip": False,
     }
 
 
