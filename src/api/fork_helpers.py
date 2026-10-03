@@ -5,7 +5,16 @@ from http import HTTPStatus as HTTP  # noqa: N814
 
 from rest_framework.response import Response
 
-from app.models import ComicIssue, MediaTypes, MoviePlay, Music, Podcast, Sources, Video
+from app.models import (
+    ComicIssue,
+    MediaTypes,
+    MoviePlay,
+    Music,
+    Podcast,
+    Sources,
+    Video,
+    VideoPlay,
+)
 
 from . import helpers
 
@@ -48,7 +57,12 @@ FORK_EXTRA_SOURCES = {
 }
 
 _MODIFIABLE_FIELDS = {
-    "score", "status", "progress", "start_date", "end_date", "notes",
+    "score",
+    "status",
+    "progress",
+    "start_date",
+    "end_date",
+    "notes",
     "entry_source",
 }
 
@@ -108,6 +122,21 @@ def movie_plays_for_history(user_medias, media_type):
     if movie is None:
         return None
     plays = list(MoviePlay.objects.filter(movie=movie))
+    return plays or None
+
+
+def video_plays_for_history(user_medias, media_type):
+    """Return VideoPlay rows for a video, or None when this is not a video.
+
+    @param user_medias - Queryset of the user's Video rows for one item.
+    @param media_type - Requested history type.
+    """
+    if media_type != MediaTypes.VIDEO.value:
+        return None
+    video = user_medias.first()
+    if video is None:
+        return None
+    plays = list(VideoPlay.objects.filter(video=video).select_related("video"))
     return plays or None
 
 

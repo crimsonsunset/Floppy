@@ -339,6 +339,12 @@ SUPPORTED_FILTERS_BY_MEDIA_TYPE = {
         "country",
         "tag",
     },
+    MediaTypes.VIDEO.value: {
+        "status",
+        "rating",
+        "source",
+        "tag",
+    },
 }
 
 

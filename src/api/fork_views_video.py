@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from app.models import Item, MediaTypes, Video
+from app.stats_youtube import youtube_thumbnail_url
 
 from .helpers import check_source_type
 
@@ -50,16 +51,26 @@ class VideoPlayView(APIView):
         except (TypeError, ValueError):
             return Response({"detail": "seconds must be integers"}, status=HTTP.BAD_REQUEST)
 
+        poster = youtube_thumbnail_url(media_id)
         item, _created = Item.objects.get_or_create(
             media_id=media_id,
             source=source,
             media_type=MediaTypes.VIDEO.value,
             library_media_type=MediaTypes.VIDEO.value,
-            defaults={"title": title},
+            defaults={"title": title, "image": poster},
         )
+        update_fields = []
         if item.title != title:
             item.title = title
-            item.save(update_fields=["title"])
+            update_fields.append("title")
+        if poster and (not item.image or str(item.image).startswith("data:")):
+            item.image = poster
+            update_fields.append("image")
+        if item.metadata_fetched_at is None:
+            item.metadata_fetched_at = timezone.now()
+            update_fields.append("metadata_fetched_at")
+        if update_fields:
+            item.save(update_fields=update_fields)
 
         video, _video_created = Video.objects.get_or_create(
             item=item,

@@ -1594,7 +1594,13 @@ class MediaConsumptionHistoryView(drf_views.APIView):
         # MoviePlay rows, history is served from those instead of the single
         # tracker row. Untouched movies keep today's single-entry behavior.
         movie_plays = fork_helpers.movie_plays_for_history(user_medias, media_type)
-        history_rows = movie_plays if movie_plays is not None else list(user_medias)
+        video_plays = fork_helpers.video_plays_for_history(user_medias, media_type)
+        if movie_plays is not None:
+            history_rows = movie_plays
+        elif video_plays is not None:
+            history_rows = video_plays
+        else:
+            history_rows = list(user_medias)
 
         # FORK: was "TODO: missing sorting"
         history_rows, sort_err = fork_helpers.sort_history_results(

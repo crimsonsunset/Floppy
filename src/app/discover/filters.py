@@ -34,6 +34,7 @@ MEDIA_TYPE_TO_MODEL = {
     MediaTypes.MANGA.value: "manga",
     MediaTypes.GAME.value: "game",
     MediaTypes.BOARDGAME.value: "boardgame",
+    MediaTypes.VIDEO.value: "video",
 }
 
 

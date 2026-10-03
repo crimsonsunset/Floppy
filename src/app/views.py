@@ -1233,7 +1233,11 @@ def music_bulk_save(request):
 def create_entry(request):
     """Return the form for manually adding media items."""
     if request.method == "GET":
-        media_types = MediaTypes.values
+        media_types = [
+            media_type
+            for media_type in MediaTypes.values
+            if media_type != MediaTypes.VIDEO.value
+        ]
         return render(
             request,
             "app/create_entry.html",
