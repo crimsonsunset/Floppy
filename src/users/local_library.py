@@ -14,12 +14,37 @@ from django.utils import timezone
 from app.models.choices import MediaTypes, Sources, Status
 from app.models.item import Item
 from users.demo import ensure_demo_user
+from users.tile_metadata import (
+    DISPLAY_DORMANT,
+    MAX_LINE_FIELDS,
+    PROFILE_TYPES,
+    TILE_FIELDS,
+    parse_tile_metadata,
+)
 
 LOCAL_USERNAME = "joe"
 LOCAL_PASSWORD = "localtiles"  # noqa: S105
 LOCAL_EMAIL = "joe@example.com"
 RELEASE = datetime(2024, 3, 12, 12, tzinfo=UTC)
 SEED = "tile-seed"
+_PROFILE_FIELD_ORDER = (
+    "release_year",
+    "genres",
+    "runtime",
+    "status",
+    "rating",
+    "last_played",
+    "progress",
+    "synopsis",
+    "episode_code",
+    "show_name",
+    "artist",
+    "album",
+    "track_number",
+    "author",
+    "series_position",
+    "role",
+)
 
 _TRACKED = (
     {
@@ -304,7 +329,10 @@ def seed_local_library():
     users = [ensure_demo_user(), _ensure_local_user()]
     played = timezone.now() - timedelta(days=3)
     touched = 0
+    profiles = _full_tile_profiles()
     for user in users:
+        user.tile_metadata = profiles
+        user.save(update_fields=["tile_metadata"])
         for row in _TRACKED:
             _seed_tracked(user, row, played)
             touched += 1
@@ -315,6 +343,29 @@ def seed_local_library():
         touched += 1
     _seed_cast()
     return touched
+
+
+def _full_tile_profiles():
+    """Return a profile that turns on every field each type can show.
+
+    Lines stay visible at rest so a local check does not depend on hover.
+    """
+    types = {}
+    for media_type in PROFILE_TYPES:
+        allowed = [
+            field_id
+            for field_id in _PROFILE_FIELD_ORDER
+            if media_type in TILE_FIELDS[field_id]["types"]
+        ]
+        lines = [
+            {
+                "fields": allowed[start : start + MAX_LINE_FIELDS],
+                "display": DISPLAY_DORMANT,
+            }
+            for start in range(0, len(allowed), MAX_LINE_FIELDS)
+        ]
+        types[media_type] = {"display": "always", "lines": lines}
+    return parse_tile_metadata({"types": types})
 
 
 def _ensure_local_user():
