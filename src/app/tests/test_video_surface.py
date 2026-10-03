@@ -31,3 +31,11 @@ class YoutubeThumbnailTests(SimpleTestCase):
             config.get_collection_field_config(MediaTypes.VIDEO.value)["fields"],
             [],
         )
+
+    def test_video_is_a_sidebar_type(self):
+        """Videos sit in the media-type grid beside Music."""
+        from users.models import User
+        from users.views import SIDEBAR_MEDIA_TYPES
+
+        self.assertIn(MediaTypes.VIDEO.value, SIDEBAR_MEDIA_TYPES)
+        self.assertTrue(User._meta.get_field("video_enabled"))

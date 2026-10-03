@@ -223,7 +223,7 @@ def calendar(request):
         "media_types": [
             media_type.value
             for media_type in MediaTypes
-            if media_type not in (MediaTypes.EPISODE, MediaTypes.VIDEO)
+            if media_type != MediaTypes.EPISODE
         ],
         "event_statuses": event_status_values,
         "calendar": calendar_format,
