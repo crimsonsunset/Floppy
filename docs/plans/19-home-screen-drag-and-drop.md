@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Gate | 2 (plan ready) |
+| Gate | 5 (pushed, PR not opened) |
 | Ticket | 19 |
 | Branch | bugfix/19-home-screen-drag-and-drop |
 | Repos | floppy |
@@ -120,3 +120,11 @@ The fix leaves that flow alone. It changes when `initSortables()` runs: after ea
 - [Issue #19](https://github.com/crimsonsunset/Floppy/issues/19)
 - [7-home-screen-settings-usable.md](7-home-screen-settings-usable.md): shipped the vendored Sortable and the current layout.
 - [PR #1373](https://github.com/dannyvfilms/Floppy/pull/1373) and [#1425](https://github.com/dannyvfilms/Floppy/pull/1425): Danny's merge of that work.
+
+## Implementation notes
+
+- Reproduced in the browser. Sortable moved the node, then Alpine's `x-for` moved it again, so the visible order and `this.sections` diverged after every drop. `onEnd` records the new order, puts the node back, and lets Alpine do the only reorder. Re-init still runs on the next tick.
+- The media-type bar (`.section-drag-row`) is the section handle. A click that does not move still expands it. `lastDragAt` ignores the click that follows a drop.
+- An inner row drags from the article except the name field and `.home-settings-row-controls`.
+- `0196_merge_0195_merge_20261002_2211_0195_video` and the ruff fixes are a separate commit. `origin/latest` had two `0195` leaves and 4 ruff errors from the video type (PR #18). Not part of this fix.
+- `users.tests.views.test_home_screen` has 35 baseline errors on `origin/latest`: the tests set `video_enabled`, which `User` does not define. The new markup assertions sit in one of those tests, so they were checked with a throwaway render test instead. Fix belongs with the video type work.
