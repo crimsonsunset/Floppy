@@ -1104,7 +1104,6 @@ def _build_static_row(
         "loaded_count": len(shown),
         "card_width_class": card_width_class,
         "summary_inline": None,
-        "show_played_chip": False,
         "view_all_url": view_all_url,
         "view_all_text": view_all_text,
     }

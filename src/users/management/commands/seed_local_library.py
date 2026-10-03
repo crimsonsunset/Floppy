@@ -10,7 +10,8 @@ class Command(BaseCommand):
 
     help = (
         "Upsert the sample library (one row per media type) for the demo "
-        "account and joe. Safe to run again. Does not change other rows."
+        "account and joe, and give each a full tile profile. Safe to run "
+        "again. Does not change other rows."
     )
 
     def handle(self, *args, **options):

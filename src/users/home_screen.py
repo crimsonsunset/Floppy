@@ -1642,19 +1642,16 @@ class _AlbumHomeAdapter(_MusicTrackerAdapter):
     def __init__(self, item: Item, tracker: object, album: object):
         super().__init__(item, tracker)
         self.album = album
-        self.home_music_card = True
-        artist = getattr(album, "artist", None)
-        self.card_subtitle_text = getattr(artist, "name", "") or ""
-        self.card_subtitle_date = getattr(tracker, "created_at", None)
+        self.artist = getattr(album, "artist", None)
+        self.release_date = getattr(album, "release_date", None)
+        self.genres = list(getattr(album, "genres", None) or [])
 
 
 class _ArtistHomeAdapter(_MusicTrackerAdapter):
     def __init__(self, item: Item, tracker: object, artist: object):
         super().__init__(item, tracker)
         self.artist = artist
-        self.home_music_card = True
-        self.card_subtitle_text = ""
-        self.card_subtitle_date = getattr(tracker, "created_at", None)
+        self.genres = list(getattr(artist, "genres", None) or [])
 
 
 RECENT_SHOW_ALBUM = "album"
@@ -1759,6 +1756,9 @@ class _RecentAlbumAdapter:
 
     def __init__(self, album, play_count, last_played_at, primary_track):
         self.album = album
+        self.artist = getattr(album, "artist", None)
+        self.release_date = getattr(album, "release_date", None)
+        self.genres = list(getattr(album, "genres", None) or [])
         self.id = album.id
         self.play_count = play_count
         self.last_played_at = last_played_at
@@ -1781,6 +1781,14 @@ class _RecentMusicPlayAdapter:
 
     def __init__(self, play, mode: str, shell: Item | None = None):
         album = getattr(play, "album", None)
+        track = getattr(play, "track", None)
+        self.album = album
+        self.artist = _play_artist(play)
+        self.release_date = getattr(album, "release_date", None)
+        self.genres = list(
+            getattr(album, "genres", None) or getattr(track, "genres", None) or []
+        )
+        self.track_number = getattr(track, "track_number", None)
         self.id = getattr(play, "id", None)
         self.play_count = getattr(play, "repeats", None) or getattr(play, "progress", None) or 1
         self.last_played_at = getattr(play, "last_played_at", None) or getattr(
@@ -1901,9 +1909,7 @@ class _PodcastShowHomeAdapter(_MusicTrackerAdapter):
     def __init__(self, item: Item, tracker: object, show: object):
         super().__init__(item, tracker)
         self.show = show
-        self.home_music_card = True
-        self.card_subtitle_text = show.author or ""
-        self.card_subtitle_date = tracker.created_at
+        self.genres = list(getattr(show, "genres", None) or [])
         self.last_played_at = tracker.updated_at
 
 
@@ -2837,7 +2843,7 @@ def _row_items(user, row, executor, offset, limit, *, seed):
     return [by_id[item_id] for item_id in window if item_id in by_id], len(ranked_ids)
 
 
-def _row_entries(user, items, *, planning_subtitle: bool = False) -> list[HomeRowEntry]:
+def _row_entries(user, items) -> list[HomeRowEntry]:
     """Decorate one window of a shelf as Home cards."""
     media_lookup = _media_lookup_for_items(user, items)
     return [
@@ -2849,7 +2855,6 @@ def _row_entries(user, items, *, planning_subtitle: bool = False) -> list[HomeRo
             ),
             podcast_show=getattr(media_lookup.get(item.id), "show", None),
             show_progress_controls=media_lookup.get(item.id) is not None,
-            subtitle_override=_entry_release_date(item) if planning_subtitle else None,
         )
         for item in items
     ]
@@ -2922,8 +2927,7 @@ def _library_row_window(user, row, offset, limit, *, seed):
         return entries[offset : offset + limit], len(entries)
     executor = _library_row_executor(user, row, normalized, seed=seed)
     items, total = _row_items(user, row, executor, offset, limit, seed=seed)
-    planning = (normalized.get("status") or []) == [Status.PLANNING.value]
-    return _row_entries(user, items, planning_subtitle=planning), total
+    return _row_entries(user, items), total
 
 
 def _recently_unrated_episode_entries(user, media_type: str) -> list[HomeRowEntry]:
@@ -2949,15 +2953,6 @@ def _recently_unrated_episode_entries(user, media_type: str) -> list[HomeRowEntr
         ep.last_played_at = ep.end_date
         season = ep.related_season
         show_item = getattr(getattr(season, "related_tv", None), "item", None)
-        show_title = getattr(show_item, "title", "") or ""
-        season_num = getattr(ep.item, "season_number", None)
-        ep_num = getattr(ep.item, "episode_number", None)
-        if show_title and season_num is not None and ep_num is not None:
-            subtitle = f"{show_title} • S{season_num:02d}E{ep_num:02d}"
-        elif show_title:
-            subtitle = show_title
-        else:
-            subtitle = None
         if not ep.item.image or ep.item.image == placeholder:
             season_image = getattr(getattr(season, "item", None), "image", None)
             show_image = getattr(show_item, "image", None)
@@ -2967,7 +2962,6 @@ def _recently_unrated_episode_entries(user, media_type: str) -> list[HomeRowEntr
                 item=ep.item,
                 media=ep,
                 show_progress_controls=False,
-                subtitle_override=subtitle,
             )
         )
     return entries
@@ -3112,7 +3106,6 @@ def _build_row_section(
         "total": total,
         "seed": seed,
         "loaded_count": loaded_count,
-        "show_played_chip": row.row_type == HomeScreenRowTypeChoices.RECENTLY_UNRATED,
         "card_width_class": "w-44",
         "grid_class": "media-grid media-grid-square"
         if media_type in SQUARE_HOME_MEDIA_TYPES

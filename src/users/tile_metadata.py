@@ -459,7 +459,7 @@ def _release_year(item, media, user):
 
 
 def _genres(item, media, user):
-    genres = _from_obj(item, "genres") or []
+    genres = _from_obj(item, "genres") or _from_obj(media, "genres") or []
     if isinstance(genres, str):
         return _text(genres)
     names = []

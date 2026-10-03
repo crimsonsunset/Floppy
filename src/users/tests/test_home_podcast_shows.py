@@ -107,7 +107,7 @@ class HomePodcastShowShelfTests(TestCase):
 
         self.assertTrue(entries[0].use_podcast_show)
         self.assertEqual(entries[0].podcast_show, self.show)
-        self.assertEqual(entries[0].media.card_subtitle_text, "Some Host")
+        self.assertEqual(list(entries[0].media.genres), ["Comedy"])
 
     def test_status_genre_and_language_filters_apply_to_shows(self):
         """Filters match the show's tracker and metadata."""

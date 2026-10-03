@@ -309,6 +309,148 @@ class TileProfileContractTest(TestCase):
         self.assertIn("Drama", content)
         self.assertIn("120 min", content)
 
+    def test_profile_lines_come_before_discover_extras(self):
+        """A saved profile renders first. Match percent and provenance follow it."""
+        self.user = get_user_model().objects.create_user(
+            username="tile-order",
+            password="12345",
+        )
+        item = Item.objects.create(
+            media_id="tile-order",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Order Movie",
+            genres=["Drama"],
+        )
+        self.user.tile_metadata = {
+            "version": 1,
+            "types": {
+                "movie": {
+                    "display": "always",
+                    "fields": ["genres"],
+                    "lines": [{"fields": ["genres"], "display": "dormant"}],
+                    "options": {"rating": {"hide_zero": False}},
+                }
+            },
+        }
+        self.user.save(update_fields=["tile_metadata"])
+        request = RequestFactory().get("/")
+        request.user = self.user
+        template = engines["django"].from_string(
+            "{% load app_tags %}"
+            "{% media_card 'discover' item=item media=None "
+            "subtitle_match_percent=80 subtitle_match_label='Taste match' "
+            "provenance_text='Because you finished it' %}"
+        )
+        content = template.render({"user": self.user, "item": item}, request)
+        self.assertLess(content.index("Drama"), content.index("80%"))
+        self.assertLess(content.index("80%"), content.index("Because you finished it"))
+
+    def test_default_episode_list_card_does_not_force_identity(self):
+        """S01E02 appears only when the episode profile includes it."""
+        self.user = get_user_model().objects.create_user(
+            username="tile-episode",
+            password="12345",
+        )
+        item = Item.objects.create(
+            media_id="tile-episode",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.EPISODE.value,
+            title="Pilot",
+            season_number=1,
+            episode_number=1,
+        )
+        request = RequestFactory().get("/")
+        request.user = self.user
+        template = engines["django"].from_string(
+            "{% load app_tags %}{% media_card 'list' item=item media=None %}"
+        )
+        plain = template.render({"user": self.user, "item": item}, request)
+        self.assertNotIn("S01 E01", plain)
+
+        self.user.tile_metadata = {
+            "version": 1,
+            "types": {
+                "episode": {
+                    "display": "always",
+                    "fields": ["episode_code"],
+                    "lines": [{"fields": ["episode_code"], "display": "dormant"}],
+                    "options": {"rating": {"hide_zero": False}},
+                }
+            },
+        }
+        self.user.save(update_fields=["tile_metadata"])
+        request.user = self.user
+        rendered = template.render({"user": self.user, "item": item}, request)
+        self.assertIn("S01 E01", rendered)
+
+    def test_album_adapter_feeds_the_music_profile(self):
+        """A Home album card carries the artist, year, and genres the profile reads."""
+        from datetime import date
+
+        from users import home_screen
+        from users.tile_metadata import tile_lines
+
+        user = get_user_model().objects.create_user(
+            username="album-profile",
+            password="12345",
+        )
+        artist = Artist.objects.create(name="Profile Artist")
+        album = Album.objects.create(
+            title="Profile Album",
+            artist=artist,
+            release_date=date(2019, 5, 1),
+            genres=["Jazz"],
+        )
+        tracker = AlbumTracker.objects.create(
+            user=user,
+            album=album,
+            status=Status.COMPLETED.value,
+        )
+        item = Item.objects.create(
+            media_id=f"album_{album.id}",
+            source=Sources.MANUAL.value,
+            media_type=MediaTypes.MUSIC.value,
+            title=album.title,
+        )
+        adapter = home_screen._AlbumHomeAdapter(item, tracker, album)
+        user.tile_metadata = {
+            "version": 1,
+            "types": {
+                "music": {
+                    "display": "always",
+                    "fields": ["artist", "release_year", "genres"],
+                    "lines": [
+                        {
+                            "fields": ["artist", "release_year", "genres"],
+                            "display": "dormant",
+                        }
+                    ],
+                    "options": {"rating": {"hide_zero": False}},
+                }
+            },
+        }
+        texts = " ".join(
+            line["text"]
+            for line in tile_lines(user, MediaTypes.MUSIC.value, item, adapter)
+        )
+        self.assertIn("Profile Artist", texts)
+        self.assertIn("2019", texts)
+        self.assertIn("Jazz", texts)
+        user.save(update_fields=["tile_metadata"])
+        request = RequestFactory().get("/")
+        request.user = user
+        template = engines["django"].from_string(
+            "{% load app_tags %}{% media_card 'home' item=item media=media "
+            "card_media_type='music' %}"
+        )
+        content = template.render(
+            {"user": user, "item": item, "media": adapter},
+            request,
+        )
+        self.assertLess(content.index("Profile Artist"), content.index("2019"))
+        self.assertIn("Jazz", content)
+
 
 class MusicGridRatingTest(TestCase):
     """The music library's artist and album tiles rate through the same picker."""
