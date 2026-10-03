@@ -785,7 +785,7 @@ class User(AbstractUser):
         choices=MediaStatusChoices,
     )
 
-    # Media type preferences: Videos (YouTube)
+    # Media type preferences: Videos (social and hosted video; YouTube first)
     video_enabled = models.BooleanField(default=True)
     video_layout = models.CharField(
         max_length=20,
