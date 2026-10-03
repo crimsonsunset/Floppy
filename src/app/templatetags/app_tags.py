@@ -1196,6 +1196,25 @@ def media_url(media):
         fallback = str(media_id) if media_id is not None else "item"
         slug_title = slug(fallback) or "item"
 
+    if actual_media_type == MediaTypes.VIDEO.value:
+        watch_url = media.get("watch_url") if is_dict else ""
+        if not watch_url and not is_dict:
+            from app.models import Video
+
+            video = (
+                Video.objects.filter(item_id=getattr(media, "id", None))
+                .only("watch_url")
+                .first()
+            )
+            watch_url = video.watch_url if video else ""
+        if not watch_url:
+            video_id = (
+                media.get("media_id") if is_dict else getattr(media, "media_id", "")
+            )
+            if video_id:
+                watch_url = f"https://www.youtube.com/watch?v={video_id}"
+        return watch_url or ""
+
     if actual_media_type == MediaTypes.EPISODE.value:
         season_number = media["season_number"] if is_dict else media.season_number
         episode_number = media["episode_number"] if is_dict else media.episode_number

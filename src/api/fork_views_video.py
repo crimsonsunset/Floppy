@@ -57,9 +57,15 @@ class VideoPlayView(APIView):
             library_media_type=MediaTypes.VIDEO.value,
             defaults={"title": title},
         )
+        update_fields = []
         if item.title != title:
             item.title = title
-            item.save(update_fields=["title"])
+            update_fields.append("title")
+        if item.metadata_fetched_at is None:
+            item.metadata_fetched_at = timezone.now()
+            update_fields.append("metadata_fetched_at")
+        if update_fields:
+            item.save(update_fields=update_fields)
 
         video, _video_created = Video.objects.get_or_create(
             item=item,

@@ -258,6 +258,17 @@ MEDIA_TYPE_CONFIG = {
         "unit": ("m", gettext_noop("Minute")),
         "date_key": "published",
     },
+    MediaTypes.VIDEO.value: {
+        "sources": [Sources.YOUTUBE],
+        "default_source": Sources.YOUTUBE,
+        "unicode_icon": "▶️",
+        "verb": (gettext_noop("watch"), gettext_noop("watched")),
+        "text_color": COLORS["red"]["text"],
+        "stats_color": COLORS["red"]["hex"],
+        "svg_icon": """<polygon points="5 3 19 12 5 21 5 3"/>""",
+        "unit": ("m", gettext_noop("Minute")),
+        "date_key": "release_date",
+    },
 }
 
 # --- Collection Field Configuration ---
@@ -423,6 +434,8 @@ COLLECTION_FIELD_BY_TYPE = {
     MediaTypes.COMIC_ISSUE.value: COLLECTION_FIELD_CONFIG["books"],
     MediaTypes.GAME.value: COLLECTION_FIELD_CONFIG["games"],
     MediaTypes.BOARDGAME.value: COLLECTION_FIELD_CONFIG["boardgames"],
+    # YouTube plays are not discs. The "video" profile is Blu-ray fields.
+    MediaTypes.VIDEO.value: {"fields": [], "labels": {}, "choices": {}},
 }
 
 # --- Status Configuration ---

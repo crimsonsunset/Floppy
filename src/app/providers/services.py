@@ -1061,6 +1061,32 @@ def _resolve_podcast_metadata(media_id, source, user=None):
     return None  # unreachable: raise_not_found_error always raises
 
 
+def _video_metadata(media_id, source):
+    """Return stored YouTube metadata. There is no live provider fetch.
+
+    @param media_id - YouTube video id.
+    @param source - Item source, usually youtube.
+    """
+    from app.models import Video
+    from app.stats_youtube import youtube_thumbnail_url
+
+    item = Item.objects.filter(
+        media_id=media_id,
+        source=source,
+        media_type=MediaTypes.VIDEO.value,
+    ).first()
+    if item is None:
+        raise_not_found_error(source, media_id, "video")
+        return None
+    metadata = _stored_item_metadata(item)
+    if not item.image or item.image == settings.IMG_NONE:
+        metadata["image"] = youtube_thumbnail_url(media_id) or metadata["image"]
+    video = Video.objects.filter(item=item).first()
+    if video is not None and video.watch_url:
+        metadata.setdefault("details", {})["watch_url"] = video.watch_url
+    return metadata
+
+
 def get_media_metadata(
     media_type,
     media_id,
@@ -1073,6 +1099,9 @@ def get_media_metadata(
     episode_order=None,
 ):
     """Return the metadata for the selected media."""
+    if media_type == MediaTypes.VIDEO.value:
+        return _video_metadata(media_id, source)
+
     if media_type in {"tv", "anime", "tv_with_seasons", "season", "episode"}:
         from app.services.order_resolution import active_order, order_from_media_id
 
@@ -1683,6 +1712,9 @@ def search(
             pocketcasts.search(query, page)
             if source == Sources.POCKETCASTS.value
             else None
+        ),
+        MediaTypes.VIDEO.value: lambda: helpers.format_search_response(
+            page, settings.PER_PAGE, 0, []
         ),
     }
     response = search_handlers[media_type]()

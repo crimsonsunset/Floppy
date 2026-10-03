@@ -50,6 +50,8 @@ APPROVED_IMAGE_HOSTS = frozenset(
         "coverartarchive.org",
         "upload.wikimedia.org",
         "static.pocketcasts.com",
+        "img.youtube.com",
+        "i.ytimg.com",
         "media.kitsu.app",
         "s4.anilist.co",
     },

@@ -1401,6 +1401,7 @@ def _aggregate_statistics_from_days(
     movie_total_minutes = minutes_by_type.get(MediaTypes.MOVIE.value, 0)
     music_total_minutes = minutes_by_type.get(MediaTypes.MUSIC.value, 0)
     podcast_total_minutes = minutes_by_type.get(MediaTypes.PODCAST.value, 0)
+    video_total_minutes = minutes_by_type.get(MediaTypes.VIDEO.value, 0)
     game_total_minutes = minutes_by_type.get(MediaTypes.GAME.value, 0)
 
     tv_total_hours = tv_total_minutes / 60 if tv_total_minutes else 0
@@ -1538,6 +1539,16 @@ def _aggregate_statistics_from_days(
         ),
         "charts": podcast_chart,
         "has_data": plays_by_type.get(MediaTypes.PODCAST.value, 0) > 0,
+    }
+
+    video_consumption = {
+        "minutes": _compute_metric_breakdown_for_range(
+            video_total_minutes, start_date, end_date
+        ),
+        "plays": _compute_metric_breakdown_for_range(
+            plays_by_type.get(MediaTypes.VIDEO.value, 0), start_date, end_date
+        ),
+        "has_data": video_total_minutes > 0,
     }
 
     most_played = sorted(
@@ -2316,6 +2327,19 @@ def _aggregate_statistics_from_days(
             ),
             "bonuses": [],
             "has_data": podcast_consumption["has_data"],
+        },
+        MediaTypes.VIDEO.value: {
+            "primary": _pack_metric(
+                _minutes_breakdown_to_hours(video_consumption["minutes"]),
+                "Hours Watched",
+                "Hours",
+                "clock",
+            ),
+            "secondary": _pack_metric(
+                video_consumption["plays"], "Video Plays", "Plays", "repeat"
+            ),
+            "bonuses": [],
+            "has_data": video_consumption["has_data"],
         },
         MediaTypes.GAME.value: {
             "primary": _pack_metric(

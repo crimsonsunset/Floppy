@@ -27,6 +27,7 @@ from app.models import (
     Podcast,  # FORK: fork-only media type
     Season,
     Status,
+    VideoPlay,
 )
 from app.templatetags.app_tags import media_url
 from events.models import Event
@@ -114,7 +115,8 @@ def _has_dropped_season(media):
     return any(
         season.status == Status.DROPPED.value
         for season in media.seasons.all()
-        if getattr(getattr(season, "item", None), "season_number", None) not in (None, 0)
+        if getattr(getattr(season, "item", None), "season_number", None)
+        not in (None, 0)
     )
 
 
@@ -349,7 +351,7 @@ class CompleteMediaSerializer(serializers.Serializer):
                         "item": item,
                         "created_at": None,
                         "score": None,
-            "scored_at": None,
+                        "scored_at": None,
                         "status": None,
                         "progress": None,
                         "progressed_at": None,
@@ -528,7 +530,9 @@ class CompleteMediaSerializer(serializers.Serializer):
             # FORK: IMDb rating alongside TMDB-based score
             "imdb_rating": getattr(instance.get("item"), "imdb_rating", None),
             "imdb_rating_count": getattr(
-                instance.get("item"), "imdb_rating_count", None,
+                instance.get("item"),
+                "imdb_rating_count",
+                None,
             ),
             "cast": media_metadata.get("cast") or [],
             "crew": media_metadata.get("crew") or [],
@@ -754,6 +758,25 @@ class HistorySerializer(serializers.Serializer):
         """Transform a user media instance into a watch history entry."""
         # For Episode/MoviePlay instances (play-per-instance types with no
         # standalone status/progress fields), use simplified structure.
+        if isinstance(instance, VideoPlay):
+            length_seconds = instance.video.length_seconds or 0
+            progress_ratio = 0
+            if length_seconds:
+                progress_ratio = instance.progress / length_seconds
+            return {
+                "consumption_id": instance.id,
+                "created": instance.created_at,
+                "score": None,
+                "scored_at": None,
+                "progress": progress_ratio,
+                "progressed_at": instance.end_date,
+                "status": get_media_status(instance.video.status),
+                "start_date": None,
+                "end_date": instance.end_date,
+                "notes": "",
+                "source": "youtube",
+                "external_id": instance.external_id,
+            }
         if isinstance(instance, (Episode, MoviePlay)):
             # FORK: episodes and movie plays expose the same tracking details
             # as other media.
@@ -976,7 +999,9 @@ class MediaSerializer(serializers.ModelSerializer):
             else None,
             "end_date": instance.end_date if hasattr(instance, "end_date") else None,
             "notes": instance.notes if hasattr(instance, "notes") else None,
-            "source": instance.entry_source if hasattr(instance, "entry_source") else None,
+            "source": instance.entry_source
+            if hasattr(instance, "entry_source")
+            else None,
             "lists": lists,
             "next_episode": next_episode,
             "show": _serialize_show(show),

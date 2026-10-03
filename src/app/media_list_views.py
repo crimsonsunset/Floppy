@@ -14,7 +14,7 @@ from django.core.cache import cache
 from django.core.exceptions import FieldError
 from django.core.paginator import Paginator
 from django.db.models import Count, F, Min, Q
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
@@ -1027,6 +1027,8 @@ def _resolve_media_list_preferences(request, route_media_type, comic_subview):
 
 def media_list(request, media_type):
     """Return the media list page."""
+    if media_type == MediaTypes.VIDEO.value:
+        raise Http404
     route_media_type = media_type
     comic_subview = None
     if route_media_type == MediaTypes.COMIC.value:

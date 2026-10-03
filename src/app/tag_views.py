@@ -261,6 +261,7 @@ TAG_INDEX_LINKABLE_MEDIA_TYPES = {
     MediaTypes.BOARDGAME.value,
     MediaTypes.MUSIC.value,
     MediaTypes.PODCAST.value,
+    MediaTypes.VIDEO.value,
 }
 
 

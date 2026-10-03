@@ -82,6 +82,20 @@ def get_daily_hours_by_media_type(user_media, start_date, end_date):
 
     # We'll need the runtime lookup function and logger
     for media_type, media_list in user_media.items():
+        if media_type == MediaTypes.VIDEO.value:
+            from app.stats_youtube import iter_video_play_minutes
+
+            video_user = _infer_user_from_user_media(user_media)
+            for play_date, minutes in iter_video_play_minutes(
+                video_user, start_date, end_date
+            ):
+                if play_date < start_date_dt or play_date > end_date_dt:
+                    continue
+                label = play_date.isoformat()
+                if label in per_type_minutes.get(media_type, {}):
+                    per_type_minutes[media_type][label] += minutes
+            continue
+
         # Movies
         if media_type == MediaTypes.MOVIE.value:
             for media in _iter_media_list(media_list):

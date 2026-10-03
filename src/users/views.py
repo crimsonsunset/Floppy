@@ -170,7 +170,12 @@ AUTO_PAUSE_MEDIA_TYPES = [
 SIDEBAR_MEDIA_TYPES = [
     mt.value
     for mt in MediaTypes
-    if mt.value not in (MediaTypes.EPISODE.value, MediaTypes.COMIC_ISSUE.value)
+    if mt.value
+    not in (
+        MediaTypes.EPISODE.value,
+        MediaTypes.COMIC_ISSUE.value,
+        MediaTypes.VIDEO.value,
+    )
 ]
 DELETABLE_MEDIA_TYPES = tuple(
     mt.value for mt in MediaTypes if mt.value != MediaTypes.EPISODE.value
