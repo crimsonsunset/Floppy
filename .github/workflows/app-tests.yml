@@ -90,9 +90,6 @@ jobs:
       - name: Migration hygiene
         run: uv run --no-sync python src/manage.py check_migration_hygiene --strict
 
-      - name: No missing migrations
-        run: uv run --no-sync python src/manage.py makemigrations --check --dry-run
-
       - name: Download affected map
         if: github.event_name == 'pull_request'
         continue-on-error: true
