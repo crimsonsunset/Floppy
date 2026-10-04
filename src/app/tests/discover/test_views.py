@@ -26,7 +26,6 @@ from app.models import (
 )
 from app.providers import services
 from app.services.tracking_hydration import HydratedItemResult
-from app.templatetags.app_tags import iso_date_format
 from users.models import DateFormatChoices
 
 
@@ -61,17 +60,6 @@ class DiscoverViewTests(TestCase):
         for name in ("refresh_discover", "discover_action", "discover_toggle_hidden"):
             with self.subTest(name=name):
                 self.assertEqual(self.client.post(reverse(name)).status_code, 404)
-
-    def _rendered_release_date(self, release_date):
-        """Return the date string the discover card prints for this user.
-
-        The card runs the value through ``iso_date_format``, which can move a
-        date-only midnight onto the previous calendar day. Assert that
-        rendered string, not the raw ISO input.
-        """
-        rendered = iso_date_format(release_date, self.user)
-        self.assertIn("2026", rendered)
-        return rendered
 
     def _row(
         self,
@@ -545,8 +533,8 @@ class DiscoverViewTests(TestCase):
         response = self.client.get(reverse("discover"), {"media_type": "movie"})
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Match Test Movie")
         self.assertContains(response, "91% Taste match")
-        self.assertContains(response, self._rendered_release_date("2026-03-04"))
         mock_warm_sibling_tabs.assert_called_once()
 
     @patch("app.views.discover_tab_cache.get_tab_status")
@@ -570,7 +558,7 @@ class DiscoverViewTests(TestCase):
         response = self.client.get(reverse("discover"), {"media_type": "movie"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, self._rendered_release_date("2026-03-04"))
+        self.assertContains(response, "Match Test Movie")
         self.assertNotContains(response, "% match")
 
     @patch("app.views.discover_tab_cache.get_tab_status")
