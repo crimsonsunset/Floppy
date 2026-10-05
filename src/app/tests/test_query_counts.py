@@ -97,7 +97,8 @@ GAME_LIST_START_DATE_SORT_MAX_QUERIES = (
 HOME_ROW_FRAGMENT_MAX_QUERIES = (
     123  # +2 from the Tags column Prefetch (#457); +1 from the provider-credential read
 )
-CUSTOM_LIST_DETAIL_MAX_QUERIES = 38  # +3 from prefilled release-year metadata;
+CUSTOM_LIST_DETAIL_MAX_QUERIES = 39  # +1 video is an enabled type;
+# +3 from prefilled release-year metadata;
 # +1 from the custom-list collaborators prefetch; +1 from the sidebar's
 # saved-views read (#413); +3 from the filter menu's options (member ids,
 # member metadata, tag names) on a full page render (#806)
