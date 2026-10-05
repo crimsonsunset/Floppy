@@ -201,6 +201,10 @@ def uses_line_renderer(user, media_type):
     """
     if uses_custom_fields(user, media_type):
         return True
+    # Home album cards used to hardcode the artist. That branch is gone, and
+    # the music default is artist plus year, so the profile has to draw.
+    if media_type == MediaTypes.MUSIC.value:
+        return True
     profile = resolve_profile(user, media_type)
     for line in profile.get("lines") or []:
         if len(line.get("fields") or []) > 1 or line.get("display") == DISPLAY_DORMANT:
