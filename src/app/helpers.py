@@ -29,6 +29,7 @@ from app.models import (
     Movie,
     Music,
     Status,
+    Video,
 )
 
 MODEL_MAP = {
@@ -43,6 +44,7 @@ MODEL_MAP = {
     # Fork media types that support manual-source items
     MediaTypes.MUSIC.value: Music,
     MediaTypes.COMIC_ISSUE.value: ComicIssue,
+    MediaTypes.VIDEO.value: Video,
 }
 
 _DEFAULT_IMAGE_SENTINEL = object()

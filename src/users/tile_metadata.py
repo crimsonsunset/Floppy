@@ -52,6 +52,7 @@ TILE_FIELDS = {
     "album": _field("Album", {"music"}, _EXTRA),
     "track_number": _field("Track number", {"music"}, _EXTRA),
     "show_name": _field("Show", {"episode", "season"}, _EXTRA),
+    "channel": _field("Channel", {"video"}),
     "author": _field("Author", {"book", "comic", "manga"}, _EXTRA),
     "role": _field("Role", {PERSON}),
 }
@@ -67,6 +68,8 @@ def _default_field_ids(media_type):
         return ["release_year", "series_position", "progress"]
     if media_type == MediaTypes.EPISODE.value:
         return ["episode_code", "release_year"]
+    if media_type == MediaTypes.VIDEO.value:
+        return ["channel"]
     return ["release_year", "progress"]
 
 
@@ -198,6 +201,10 @@ def uses_line_renderer(user, media_type):
     """
     if uses_custom_fields(user, media_type):
         return True
+    # Home album cards used to hardcode the artist. That branch is gone, and
+    # the music default is artist plus year, so the profile has to draw.
+    if media_type == MediaTypes.MUSIC.value:
+        return True
     profile = resolve_profile(user, media_type)
     for line in profile.get("lines") or []:
         if len(line.get("fields") or []) > 1 or line.get("display") == DISPLAY_DORMANT:
@@ -304,7 +311,9 @@ def title_options(profile):
         cleaned["hover_lines"] = _title_line_count(
             raw.get("hover_lines"), cleaned["hover_lines"]
         )
-    cleaned["hover_lines"] = _title_hover_lines(cleaned["hover_lines"], cleaned["lines"])
+    cleaned["hover_lines"] = _title_hover_lines(
+        cleaned["hover_lines"], cleaned["lines"]
+    )
     return cleaned
 
 
@@ -499,7 +508,9 @@ def _progress(item, media, user):
         return _text(formatted)
     max_progress = _from_obj(media, "max_progress")
     if progress and max_progress:
-        if getattr(user, "book_comic_manga_progress_percentage", False) and media_type in {
+        if getattr(
+            user, "book_comic_manga_progress_percentage", False
+        ) and media_type in {
             MediaTypes.BOOK.value,
             MediaTypes.COMIC.value,
             MediaTypes.MANGA.value,
@@ -560,7 +571,9 @@ def _show_episode_code(media):
         found = target()
         if found is not None:
             season_row, episode_number = found
-            season_number = _from_obj(getattr(season_row, "item", None), "season_number")
+            season_number = _from_obj(
+                getattr(season_row, "item", None), "season_number"
+            )
             code = _format_episode_code(season_number, episode_number)
             if code and episode_number is not None:
                 return code
@@ -724,6 +737,15 @@ def _author(item, media, user):
     )
 
 
+def _channel(item, media, user):
+    """Return the channel name stored on a video history row."""
+    return _text(
+        _from_obj(media, "episode_label")
+        or _from_obj(media, "channel")
+        or _from_obj(item, "channel")
+    )
+
+
 def _role(item, media, user):
     return _text(
         _from_obj(item, "role")
@@ -747,6 +769,7 @@ _RENDERERS = {
     "album": _album,
     "track_number": _track_number,
     "show_name": _show_name,
+    "channel": _channel,
     "author": _author,
     "role": _role,
 }
@@ -850,10 +873,22 @@ def _write_scalar(profile, field_name, value, media_type):
             return
         lines = list(profile.get("lines") or [])
         if value and "progress" not in profile["fields"]:
-            lines.append({"fields": ["progress"], "display": _fallback_line_display(profile["display"])})
+            lines.append(
+                {
+                    "fields": ["progress"],
+                    "display": _fallback_line_display(profile["display"]),
+                }
+            )
         if not value:
             lines = [
-                {**line, "fields": [field_id for field_id in line["fields"] if field_id != "progress"]}
+                {
+                    **line,
+                    "fields": [
+                        field_id
+                        for field_id in line["fields"]
+                        if field_id != "progress"
+                    ],
+                }
                 for line in lines
             ]
             lines = [line for line in lines if line["fields"]]

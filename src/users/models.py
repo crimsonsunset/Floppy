@@ -785,6 +785,29 @@ class User(AbstractUser):
         choices=MediaStatusChoices,
     )
 
+    # Media type preferences: Videos (social and hosted video; YouTube first)
+    video_enabled = models.BooleanField(default=True)
+    video_layout = models.CharField(
+        max_length=20,
+        default=LayoutChoices.GRID,
+        choices=LayoutChoices.choices,
+    )
+    video_direction = models.CharField(
+        max_length=4,
+        default=DirectionChoices.DESC,
+        choices=DirectionChoices.choices,
+    )
+    video_sort = models.CharField(
+        max_length=32,
+        default=MediaSortChoices.TITLE,
+        choices=MediaSortChoices.choices,
+    )
+    video_status = models.CharField(
+        max_length=128,
+        default=MediaStatusChoices.ALL,
+        choices=MediaStatusChoices,
+    )
+
     # UI preferences
     clickable_media_cards = models.BooleanField(
         default=False,

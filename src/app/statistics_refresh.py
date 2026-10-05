@@ -12,7 +12,7 @@ from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from app import statistics as stats
-from app.models import MediaTypes
+from app.models import MediaTypes, VideoPlay
 
 # Controlled circular: all of these are defined in statistics_cache before the
 # re-export block, so they are available on the partial module object when this
@@ -362,6 +362,14 @@ def _get_sparse_activity_days(user):
             .distinct()
         )
         days.update(day for day in podcast_days if day)
+
+    video_days = (
+        VideoPlay.objects.filter(video__user=user, end_date__isnull=False)
+        .annotate(day=TruncDate("end_date", tzinfo=tz))
+        .values_list("day", flat=True)
+        .distinct()
+    )
+    days.update(day for day in video_days if day)
 
     for media_type in (
         MediaTypes.ANIME.value,

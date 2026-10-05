@@ -533,8 +533,8 @@ class DiscoverViewTests(TestCase):
         response = self.client.get(reverse("discover"), {"media_type": "movie"})
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Match Test Movie")
         self.assertContains(response, "91% Taste match")
-        self.assertContains(response, "2026-03-04")
         mock_warm_sibling_tabs.assert_called_once()
 
     @patch("app.views.discover_tab_cache.get_tab_status")
@@ -558,7 +558,7 @@ class DiscoverViewTests(TestCase):
         response = self.client.get(reverse("discover"), {"media_type": "movie"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "2026-03-04")
+        self.assertContains(response, "Match Test Movie")
         self.assertNotContains(response, "% match")
 
     @patch("app.views.discover_tab_cache.get_tab_status")

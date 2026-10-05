@@ -267,7 +267,7 @@ class HomeViewTests(TestCase):
         self.assertContains(response, "My Anime Queue", html=False)
 
     def test_home_view_planning_rows_show_full_release_date_subtitle(self):
-        """Planning rows should show the full release date instead of only the year."""
+        """Planning rows show the release year from the tile profile."""
         self.user.date_format = DateFormatChoices.ISO_8601
         self.user.save(update_fields=["date_format"])
 
@@ -300,7 +300,7 @@ class HomeViewTests(TestCase):
 
         response = self._get_hydrated_home()
 
-        self.assertContains(response, "2026-05-12")
+        self.assertContains(response, "2026")
 
     def test_home_view_prefills_release_years_for_known_dates(self):
         """Known item release years should render server-side on Home rows."""

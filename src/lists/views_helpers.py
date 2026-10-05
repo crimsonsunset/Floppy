@@ -52,6 +52,7 @@ _MEDIA_TYPE_COLORS = {
     "boardgame": "#14b8a6",
     "music": "#06b6d4",
     "podcast": "#3b82f6",
+    "video": "#ef4444",
 }
 
 ASCENDING_LIST_SORTS = {

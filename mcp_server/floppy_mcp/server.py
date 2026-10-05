@@ -25,7 +25,7 @@ mcp = FastMCP(
     name="floppy",
     instructions=(
         "Tools for tracking movies, TV, anime, manga, books, comics, games, "
-        "board games, music, and podcasts in a user's Floppy library, plus "
+        "board games, music, podcasts, and videos in a user's Floppy library, plus "
         "custom lists, history, statistics, and account settings. Call "
         "search_media before track_media when you don't already have a "
         "known source/media_id — track_media requires exact identifiers."
@@ -94,7 +94,10 @@ async def search_media(media_type: str, query: str, page: int = 1) -> Any:
     """Search a provider for media to track.
 
     media_type: one of tv, movie, anime, manga, game, book, comic,
-    boardgame, music, podcast, comicissue.
+    boardgame, music, podcast, comicissue, video. video is a catchall
+    for social and hosted video. YouTube is the source that writes today;
+    search returns nothing for video. Plays are written at
+    POST /api/v1/videos/{source}/{id}/plays/.
     Returns provider results including the source and media_id needed by
     track_media. For games, each result also includes "platforms" and
     "year" so you can pick the right release (e.g. the GameCube version vs.

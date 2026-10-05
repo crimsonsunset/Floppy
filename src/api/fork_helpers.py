@@ -5,7 +5,16 @@ from http import HTTPStatus as HTTP  # noqa: N814
 
 from rest_framework.response import Response
 
-from app.models import ComicIssue, MediaTypes, MoviePlay, Music, Podcast, Sources, Video
+from app.models import (
+    ComicIssue,
+    MediaTypes,
+    MoviePlay,
+    Music,
+    Podcast,
+    Sources,
+    Video,
+    VideoPlay,
+)
 
 from . import helpers
 
@@ -48,7 +57,12 @@ FORK_EXTRA_SOURCES = {
 }
 
 _MODIFIABLE_FIELDS = {
-    "score", "status", "progress", "start_date", "end_date", "notes",
+    "score",
+    "status",
+    "progress",
+    "start_date",
+    "end_date",
+    "notes",
     "entry_source",
 }
 
@@ -111,6 +125,21 @@ def movie_plays_for_history(user_medias, media_type):
     return plays or None
 
 
+def video_plays_for_history(user_medias, media_type):
+    """Return VideoPlay rows for a video, or None when this is not a video.
+
+    @param user_medias - Queryset of the user's Video rows for one item.
+    @param media_type - Requested history type.
+    """
+    if media_type != MediaTypes.VIDEO.value:
+        return None
+    video = user_medias.first()
+    if video is None:
+        return None
+    plays = list(VideoPlay.objects.filter(video=video).select_related("video"))
+    return plays or None
+
+
 def resolve_consumption_entry(user_medias, media_type, consumption_id):
     """Resolve an entry id the same way `.../history/` lists it.
 
@@ -118,12 +147,17 @@ def resolve_consumption_entry(user_medias, media_type, consumption_id):
     rows, so only a MoviePlay id is valid then. Movie and MoviePlay use
     independent id sequences and can collide, so checking the Movie row first
     let an entry id resolve to the movie and delete it. Untouched movies keep
-    the single tracker row.
+    the single tracker row. Video history is always the VideoPlay rows.
     """
     if media_type == MediaTypes.MOVIE.value:
         movie = user_medias.first()
         if movie is not None and MoviePlay.objects.filter(movie=movie).exists():
             return MoviePlay.objects.filter(movie=movie, id=consumption_id).first()
+    if media_type == MediaTypes.VIDEO.value:
+        video = user_medias.first()
+        if video is None:
+            return None
+        return VideoPlay.objects.filter(video=video, id=consumption_id).first()
     return user_medias.filter(id=consumption_id).first()
 
 

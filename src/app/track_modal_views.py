@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from django.apps import apps
 from django.conf import settings
+from django.http import HttpResponseBadRequest
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
@@ -565,6 +566,8 @@ def _render_standard_track_modal(
         identity_media_type=route_identity_media_type,
     )
     form_class = get_form_class(form_media_type)
+    if form_class is None:
+        return HttpResponseBadRequest("This media type cannot be edited here.")
     if form_override is not None:
         form = form_override
     elif media_type in (
