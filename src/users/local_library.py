@@ -14,12 +14,12 @@ from django.utils import timezone
 from app.models.choices import MediaTypes, Sources, Status
 from app.models.item import Item
 from users.demo import ensure_demo_user
-from users.tile_metadata import (
+from users.card_metadata import (
+    CARD_FIELDS,
     DISPLAY_DORMANT,
     MAX_LINE_FIELDS,
     PROFILE_TYPES,
-    TILE_FIELDS,
-    parse_tile_metadata,
+    parse_card_metadata,
 )
 
 LOCAL_USERNAME = "joe"
@@ -331,8 +331,8 @@ def seed_local_library():
     touched = 0
     profiles = _full_tile_profiles()
     for user in users:
-        user.tile_metadata = profiles
-        user.save(update_fields=["tile_metadata"])
+        user.card_metadata = profiles
+        user.save(update_fields=["card_metadata"])
         for row in _TRACKED:
             _seed_tracked(user, row, played)
             touched += 1
@@ -355,7 +355,7 @@ def _full_tile_profiles():
         allowed = [
             field_id
             for field_id in _PROFILE_FIELD_ORDER
-            if media_type in TILE_FIELDS[field_id]["types"]
+            if media_type in CARD_FIELDS[field_id]["types"]
         ]
         lines = [
             {
@@ -365,7 +365,7 @@ def _full_tile_profiles():
             for start in range(0, len(allowed), MAX_LINE_FIELDS)
         ]
         types[media_type] = {"display": "always", "lines": lines}
-    return parse_tile_metadata({"types": types})
+    return parse_card_metadata({"types": types})
 
 
 def _ensure_local_user():

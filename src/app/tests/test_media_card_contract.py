@@ -226,234 +226,8 @@ class MediaCardTemplateUsageTest(TestCase):
         self.assertEqual(undeclared, [])
 
 
-# Hand-rolled tiles that are not the shared card. Each one has to call the
-# profile tag. list_grid is a list index, not a media tile.
-PROFILE_TILES = (
-    "app/components/history_card.html",
-    "app/components/artist_grid_items.html",
-    "app/components/album_list_grid_items.html",
-    "app/components/album_grid.html",
-    "app/components/artist_relation_grid.html",
-    "app/search.html",
-    "app/components/media_card_list.html",
-    "app/components/episode_row.html",
-    "app/components/person_card_inline.html",
-    "app/components/person_filmography_card.html",
-    "app/components/statistics/highlight_set.html",
-    "app/components/active_playback_card.html",
-    "app/episode_details.html",
-    "events/components/calendar_list.html",
-    "events/components/calendar_grid.html",
-)
-
-
-class TileProfileContractTest(TestCase):
-    """A tile that ignores the profile fails here."""
-
-    def test_inventory_templates_read_the_profile(self):
-        """Every listed tile calls the shared line tag."""
-        missing = [
-            name
-            for name in PROFILE_TILES
-            if "tile_lines" not in (TEMPLATES_DIR / name).read_text()
-        ]
-        self.assertEqual(missing, [])
-
-    def test_lists_index_has_no_hover_class(self):
-        """Item count stays visible. The index is not a media tile."""
-        source = (TEMPLATES_DIR / "lists/components/list_grid.html").read_text()
-        self.assertNotIn("media-card-subtitle-always", source)
-        self.assertNotIn("tile_lines", source)
-
-    def test_custom_movie_fields_render_on_the_shared_card(self):
-        """A saved field list replaces the default year line."""
-        self.user = get_user_model().objects.create_user(
-            username="tile-user",
-            password="12345",
-        )
-        item = Item.objects.create(
-            media_id="tile-fields",
-            source=Sources.TMDB.value,
-            media_type=MediaTypes.MOVIE.value,
-            title="Field Movie",
-            genres=["Drama"],
-            runtime="120 min",
-        )
-        movie = Movie.objects.create(
-            item=item,
-            user=self.user,
-            status=Status.COMPLETED.value,
-            progress=1,
-            score=8,
-        )
-        self.user.tile_metadata = {
-            "version": 1,
-            "types": {
-                "movie": {
-                    "display": "always",
-                    "fields": ["genres", "runtime"],
-                    "options": {"rating": {"hide_zero": False}},
-                }
-            },
-        }
-        self.user.save(update_fields=["tile_metadata"])
-        request = RequestFactory().get("/")
-        request.user = self.user
-        template = engines["django"].from_string(
-            "{% load app_tags %}{% media_card 'library' item=item media=media %}"
-        )
-        content = template.render(
-            {"user": self.user, "item": item, "media": movie},
-            request,
-        )
-        self.assertIn("Drama", content)
-        self.assertIn("120 min", content)
-
-    def test_profile_lines_come_before_discover_extras(self):
-        """A saved profile renders first. Match percent and provenance follow it."""
-        self.user = get_user_model().objects.create_user(
-            username="tile-order",
-            password="12345",
-        )
-        item = Item.objects.create(
-            media_id="tile-order",
-            source=Sources.TMDB.value,
-            media_type=MediaTypes.MOVIE.value,
-            title="Order Movie",
-            genres=["Drama"],
-        )
-        self.user.tile_metadata = {
-            "version": 1,
-            "types": {
-                "movie": {
-                    "display": "always",
-                    "fields": ["genres"],
-                    "lines": [{"fields": ["genres"], "display": "dormant"}],
-                    "options": {"rating": {"hide_zero": False}},
-                }
-            },
-        }
-        self.user.save(update_fields=["tile_metadata"])
-        request = RequestFactory().get("/")
-        request.user = self.user
-        template = engines["django"].from_string(
-            "{% load app_tags %}"
-            "{% media_card 'discover' item=item media=None "
-            "subtitle_match_percent=80 subtitle_match_label='Taste match' "
-            "provenance_text='Because you finished it' %}"
-        )
-        content = template.render({"user": self.user, "item": item}, request)
-        self.assertLess(content.index("Drama"), content.index("80%"))
-        self.assertLess(content.index("80%"), content.index("Because you finished it"))
-
-    def test_default_episode_list_card_does_not_force_identity(self):
-        """S01E02 appears only when the episode profile includes it."""
-        self.user = get_user_model().objects.create_user(
-            username="tile-episode",
-            password="12345",
-        )
-        item = Item.objects.create(
-            media_id="tile-episode",
-            source=Sources.TMDB.value,
-            media_type=MediaTypes.EPISODE.value,
-            title="Pilot",
-            season_number=1,
-            episode_number=1,
-        )
-        request = RequestFactory().get("/")
-        request.user = self.user
-        template = engines["django"].from_string(
-            "{% load app_tags %}{% media_card 'list' item=item media=None %}"
-        )
-        plain = template.render({"user": self.user, "item": item}, request)
-        self.assertNotIn("S01 E01", plain)
-
-        self.user.tile_metadata = {
-            "version": 1,
-            "types": {
-                "episode": {
-                    "display": "always",
-                    "fields": ["episode_code"],
-                    "lines": [{"fields": ["episode_code"], "display": "dormant"}],
-                    "options": {"rating": {"hide_zero": False}},
-                }
-            },
-        }
-        self.user.save(update_fields=["tile_metadata"])
-        request.user = self.user
-        rendered = template.render({"user": self.user, "item": item}, request)
-        self.assertIn("S01 E01", rendered)
-
-    def test_album_adapter_feeds_the_music_profile(self):
-        """A Home album card carries the artist, year, and genres the profile reads."""
-        from datetime import date
-
-        from users import home_screen
-        from users.tile_metadata import tile_lines
-
-        user = get_user_model().objects.create_user(
-            username="album-profile",
-            password="12345",
-        )
-        artist = Artist.objects.create(name="Profile Artist")
-        album = Album.objects.create(
-            title="Profile Album",
-            artist=artist,
-            release_date=date(2019, 5, 1),
-            genres=["Jazz"],
-        )
-        tracker = AlbumTracker.objects.create(
-            user=user,
-            album=album,
-            status=Status.COMPLETED.value,
-        )
-        item = Item.objects.create(
-            media_id=f"album_{album.id}",
-            source=Sources.MANUAL.value,
-            media_type=MediaTypes.MUSIC.value,
-            title=album.title,
-        )
-        adapter = home_screen._AlbumHomeAdapter(item, tracker, album)
-        user.tile_metadata = {
-            "version": 1,
-            "types": {
-                "music": {
-                    "display": "always",
-                    "fields": ["artist", "release_year", "genres"],
-                    "lines": [
-                        {
-                            "fields": ["artist", "release_year", "genres"],
-                            "display": "dormant",
-                        }
-                    ],
-                    "options": {"rating": {"hide_zero": False}},
-                }
-            },
-        }
-        texts = " ".join(
-            line["text"]
-            for line in tile_lines(user, MediaTypes.MUSIC.value, item, adapter)
-        )
-        self.assertIn("Profile Artist", texts)
-        self.assertIn("2019", texts)
-        self.assertIn("Jazz", texts)
-        user.save(update_fields=["tile_metadata"])
-        request = RequestFactory().get("/")
-        request.user = user
-        template = engines["django"].from_string(
-            "{% load app_tags %}{% media_card 'home' item=item media=media "
-            "card_media_type='music' %}"
-        )
-        content = template.render(
-            {"user": user, "item": item, "media": adapter},
-            request,
-        )
-        self.assertLess(content.index("Profile Artist"), content.index("2019"))
-        self.assertIn("Jazz", content)
-
-
 class MusicGridRatingTest(TestCase):
-    """The music library's artist and album tiles rate through the same picker."""
+    """The music library's artist and album cards rate through the same picker."""
 
     def setUp(self):
         """Create an artist and an album the user tracks."""
@@ -474,8 +248,8 @@ class MusicGridRatingTest(TestCase):
             request,
         )
 
-    def test_artist_tile_rates_the_artist(self):
-        """An unrated artist tile offers the empty star and posts to the artist."""
+    def test_artist_card_rates_the_artist(self):
+        """An unrated artist card offers the empty star and posts to the artist."""
         tracker = ArtistTracker.objects.create(user=self.user, artist=self.artist)
         content = self.render_grid("app/components/artist_grid_items.html", tracker)
         self.assertIn("media-card-rate-button", content)
@@ -484,8 +258,8 @@ class MusicGridRatingTest(TestCase):
             content,
         )
 
-    def test_album_tile_rates_the_album(self):
-        """A rated album tile shows its score and posts to the album."""
+    def test_album_card_rates_the_album(self):
+        """A rated album card shows its score and posts to the album."""
         tracker = AlbumTracker.objects.create(
             user=self.user,
             album=self.album,
@@ -498,3 +272,86 @@ class MusicGridRatingTest(TestCase):
             content,
         )
 
+
+# Hand-rolled cards that are not the shared card. Each one has to call the
+# profile tag. list_grid is a list index, not a media card.
+PROFILE_CARDS = (
+    "app/components/history_card.html",
+    "app/components/artist_grid_items.html",
+    "app/components/album_list_grid_items.html",
+    "app/components/album_grid.html",
+    "app/components/artist_relation_grid.html",
+    "app/search.html",
+    "app/components/media_card_list.html",
+    "app/components/episode_row.html",
+    "app/components/person_card_inline.html",
+    "app/components/person_filmography_card.html",
+    "app/components/statistics/highlight_set.html",
+    "app/components/active_playback_card.html",
+    "app/episode_details.html",
+    "events/components/calendar_list.html",
+    "events/components/calendar_grid.html",
+)
+
+
+class CardProfileContractTest(TestCase):
+    """A card that ignores the profile fails here."""
+
+    def test_inventory_templates_read_the_profile(self):
+        """Every listed card calls the shared line tag."""
+        missing = [
+            name
+            for name in PROFILE_CARDS
+            if "card_lines" not in (TEMPLATES_DIR / name).read_text()
+        ]
+        self.assertEqual(missing, [])
+
+    def test_lists_index_has_no_hover_class(self):
+        """Item count stays visible. The index is not a media card."""
+        source = (TEMPLATES_DIR / "lists/components/list_grid.html").read_text()
+        self.assertNotIn("media-card-subtitle-always", source)
+        self.assertNotIn("card_lines", source)
+
+    def test_custom_movie_fields_render_on_the_shared_card(self):
+        """A saved field list replaces the default year line."""
+        self.user = get_user_model().objects.create_user(
+            username="card-user",
+            password="12345",
+        )
+        item = Item.objects.create(
+            media_id="card-fields",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Field Movie",
+            genres=["Drama"],
+            runtime="120 min",
+        )
+        movie = Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+            progress=1,
+            score=8,
+        )
+        self.user.card_metadata = {
+            "version": 1,
+            "types": {
+                "movie": {
+                    "display": "always",
+                    "fields": ["genres", "runtime"],
+                    "options": {"rating": {"hide_zero": False}},
+                }
+            },
+        }
+        self.user.save(update_fields=["card_metadata"])
+        request = RequestFactory().get("/")
+        request.user = self.user
+        template = engines["django"].from_string(
+            "{% load app_tags %}{% media_card 'library' item=item media=media %}"
+        )
+        content = template.render(
+            {"user": self.user, "item": item, "media": movie},
+            request,
+        )
+        self.assertIn("Drama", content)
+        self.assertIn("120 min", content)

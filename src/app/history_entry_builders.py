@@ -302,26 +302,10 @@ def _build_video_play_entry(play):
     if not played_at_local:
         return None
     runtime_minutes = video.length_seconds // 60 if video.length_seconds else None
-    item = _serialize_item(video.item)
-    poster = (
-        video.item.image
-        if video.item.image and video.item.image != settings.IMG_NONE
-        else ""
-    )
-    if not poster:
-        from app.stats_youtube import youtube_thumbnail_url
-
-        poster = youtube_thumbnail_url(video.item.media_id) or settings.IMG_NONE
-    if item is not None:
-        item["watch_url"] = video.watch_url or (
-            f"https://www.youtube.com/watch?v={video.item.media_id}"
-            if video.item.media_id
-            else ""
-        )
     return {
         "media_type": MediaTypes.VIDEO.value,
-        "item": item,
-        "poster": poster,
+        "item": _serialize_item(video.item),
+        "poster": video.item.image or settings.IMG_NONE,
         "title": video.item.title,
         "display_title": video.item.title,
         "status": video.status,
@@ -330,9 +314,7 @@ def _build_video_play_entry(play):
         "episode_code": None,
         "played_at_local": played_at_local,
         "runtime_minutes": runtime_minutes,
-        "runtime_display": helpers.minutes_to_hhmm(runtime_minutes)
-        if runtime_minutes
-        else None,
+        "runtime_display": helpers.minutes_to_hhmm(runtime_minutes) if runtime_minutes else None,
         "instance_id": play.id,
         "entry_key": f"video:{play.id}",
         "entry_source": "youtube",

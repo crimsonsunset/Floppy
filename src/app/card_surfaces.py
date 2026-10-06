@@ -18,6 +18,7 @@ class CardSurface:
     show_release_year_placeholder: bool = True
     show_next_event_chip: bool = False
     show_next_event_subtitle: bool = False
+    show_episode_identity: bool = False
     hover_action_mode: str = "standard"
     is_recommend_mode: bool = False
     secondary_color: bool = False
@@ -31,8 +32,15 @@ SURFACES = {
     "list_recommendations": CardSurface(),
     # Upcoming shelves add the next release under the tile profile.
     "home": CardSurface(show_next_event_chip=True, show_next_event_subtitle=True),
-    # Episode code is a profile field, so a list does not force S01E02.
-    "list": CardSurface(),
+    # A list can hold single episodes; S01E02 says which one.
+    "list": CardSurface(show_episode_identity=True),
+    # A tile on a tier board: the board owns clicks and drags, so no hover
+    # actions, and no status chip or release year to load for a small poster.
+    "tier": CardSurface(
+        show_status_chip=False,
+        show_release_year_placeholder=False,
+        hover_action_mode="none",
+    ),
     # Provider results are not saved items, so there is no release year to load.
     "search": CardSurface(show_release_year_placeholder=False),
     # Picking an item inside a modal: a click previews it, no hover actions.
@@ -74,6 +82,9 @@ CARD_VALUES = frozenset(
         "collection_completeness",
         "use_podcast_show",
         "podcast_show",
+        "show_played_chip",
+        "show_media_type_chip",
+        "media_type_chip_type",
         "active",
     },
 )
@@ -121,19 +132,19 @@ def card_context(page_context, surface, values):
         "card_uid": uuid4().hex[:8],
         **values,
     }
-    rendered_context.update(_tile_render_context(rendered_context))
+    rendered_context.update(_card_render_context(rendered_context))
     return rendered_context
 
 
-def _tile_render_context(rendered_context):
+def _card_render_context(rendered_context):
     """Attach the subtitle profile for this card."""
-    from users.tile_metadata import (
+    from users.card_metadata import (
         DISPLAY_HOVER,
+        card_lines,
         progress_bar_display,
         resolve_profile,
         show_progress_field,
         subtitle_display,
-        tile_lines,
         title_options,
         uses_line_renderer,
     )
@@ -152,10 +163,10 @@ def _tile_render_context(rendered_context):
     display = DISPLAY_HOVER if use_lines else subtitle_display(user, media_type)
     profile = resolve_profile(user, media_type)
     return {
-        "tile_display": display,
-        "tile_show_progress": show_progress_field(user, media_type),
-        "tile_progress_display": progress_bar_display(profile) or "",
-        "tile_use_lines": use_lines,
-        "tile_line_list": tile_lines(user, media_type, item, media),
-        "tile_title": title_options(profile),
+        "card_display": display,
+        "card_show_progress": show_progress_field(user, media_type),
+        "card_progress_display": progress_bar_display(profile) or "",
+        "card_use_lines": use_lines,
+        "card_line_list": card_lines(user, media_type, item, media),
+        "card_title": title_options(profile),
     }

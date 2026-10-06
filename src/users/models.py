@@ -25,6 +25,7 @@ from users import helpers
 PLAYBACK_WEBHOOK_SECRET_MAX_LENGTH = 128
 
 EXCLUDED_SEARCH_TYPES = [MediaTypes.SEASON.value, MediaTypes.EPISODE.value]
+HOME_ALL_MEDIA_TYPE = "all"
 
 # Search-bar option that searches every enabled type in the user's own library
 # (tracked, collected or tagged items) instead of one provider (#1160).
@@ -35,7 +36,8 @@ VALID_SEARCH_TYPES = [
 ] + [ALL_SEARCH_TYPE]
 
 VALID_HOME_SCREEN_MEDIA_TYPES = [
-    value for value in MediaTypes.values if value != MediaTypes.EPISODE.value
+    HOME_ALL_MEDIA_TYPE,
+    *[value for value in MediaTypes.values if value != MediaTypes.EPISODE.value],
 ]
 
 MULTI_STATUS_PREFERENCE_FIELDS = {
@@ -50,6 +52,7 @@ MULTI_STATUS_PREFERENCE_FIELDS = {
     "comic_status",
     "music_status",
     "podcast_status",
+    "video_status",
     "list_detail_status",
 }
 # Score-scaling constants: a user's display scale is either 1-5 or the
@@ -164,6 +167,14 @@ class LayoutChoices(models.TextChoices):
     TABLE = "table", _("Table")
 
 
+class ListDetailLayoutChoices(models.TextChoices):
+    """Choices for the list page layout: the media list layouts plus Tiers."""
+
+    GRID = "grid", _("Grid")
+    TABLE = "table", _("Table")
+    TIERS = "tiers", _("Tiers")
+
+
 class CalendarLayoutChoices(models.TextChoices):
     """Choices for calendar layout options."""
 
@@ -195,6 +206,7 @@ class ListDetailSortChoices(models.TextChoices):
     START_DATE = "start_date", _("Start Date")
     END_DATE = "end_date", _("End Date")
     PLATFORM = "platform", _("Platform")
+    TIER = "tier", _("Tier")
 
 
 class DateFormatChoices(models.TextChoices):
@@ -785,7 +797,7 @@ class User(AbstractUser):
         choices=MediaStatusChoices,
     )
 
-    # Media type preferences: Videos (social and hosted video; YouTube first)
+    # Video preferences
     video_enabled = models.BooleanField(default=True)
     video_layout = models.CharField(
         max_length=20,
@@ -984,8 +996,8 @@ class User(AbstractUser):
     )
     list_detail_layout = models.CharField(
         max_length=20,
-        default=LayoutChoices.GRID,
-        choices=LayoutChoices,
+        default=ListDetailLayoutChoices.GRID,
+        choices=ListDetailLayoutChoices,
     )
 
     # Notification settings
@@ -1177,10 +1189,10 @@ class User(AbstractUser):
         help_text="Visible and ordered sections for each detail page family",
     )
 
-    tile_metadata = models.JSONField(
+    card_metadata = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Per-media-type subtitle fields shown under a tile title",
+        help_text="Per-media-type subtitle fields shown under a card title",
     )
 
     ui_language = models.CharField(
@@ -1368,6 +1380,25 @@ class User(AbstractUser):
     home_show_media_type_headers = models.BooleanField(
         default=False,
         help_text="Show a media-type header (icon + name) above each group of home screen rows",
+    )
+    home_media_type_chips_enabled = models.BooleanField(
+        default=True,
+        help_text="Show media-type labels on mixed in-progress and finished Home rows",
+    )
+    home_media_type_chip_style = models.CharField(
+        max_length=12,
+        default="soft",
+        choices=[
+            ("solid", "Solid"),
+            ("soft", "Soft"),
+            ("outline", "Outline"),
+        ],
+        help_text="Appearance of media-type labels on mixed Home rows",
+    )
+    home_media_type_chip_colors = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Custom hexadecimal label colors keyed by media type",
     )
     home_screen_media_type_order = models.JSONField(
         default=list,
@@ -1623,7 +1654,7 @@ class User(AbstractUser):
             ),
             models.CheckConstraint(
                 name="list_detail_layout_valid",
-                condition=models.Q(list_detail_layout__in=LayoutChoices.values),
+                condition=models.Q(list_detail_layout__in=ListDetailLayoutChoices.values),
             ),
             models.CheckConstraint(
                 name="music_layout_valid",
@@ -1648,6 +1679,18 @@ class User(AbstractUser):
             models.CheckConstraint(
                 name="podcast_direction_valid",
                 condition=models.Q(podcast_direction__in=DirectionChoices.values),
+            ),
+            models.CheckConstraint(
+                name="video_layout_valid",
+                condition=models.Q(video_layout__in=LayoutChoices.values),
+            ),
+            models.CheckConstraint(
+                name="video_sort_valid",
+                condition=models.Q(video_sort__in=MediaSortChoices.values),
+            ),
+            models.CheckConstraint(
+                name="video_direction_valid",
+                condition=models.Q(video_direction__in=DirectionChoices.values),
             ),
             models.CheckConstraint(
                 name="quick_watch_date_valid",
@@ -2440,7 +2483,7 @@ class HomeScreenRow(models.Model):
     )
     media_type = models.CharField(
         max_length=16,
-        choices=MediaTypes.choices,
+        choices=[(HOME_ALL_MEDIA_TYPE, "All media"), *MediaTypes.choices],
     )
     position = models.PositiveIntegerField(default=0)
     enabled = models.BooleanField(default=True)

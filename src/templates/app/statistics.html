@@ -1431,6 +1431,11 @@
         </div>
       {% endif %}
 
+      {% if user.video_enabled and video_consumption.has_data %}
+        <div x-show="isMediaTypeVisible('video')">
+          {% include "app/components/statistics/video_activity_overview.html" %}
+        </div>
+      {% endif %}
       {% if user.podcast_enabled and podcast_consumption.has_data %}
         <div x-show="isMediaTypeVisible('podcast')">
           {% include "app/components/statistics/podcast_activity_overview.html" %}
@@ -2179,6 +2184,11 @@
   {% if user.podcast_enabled and podcast_consumption.has_data %}
     {% if show_year_charts %}
       {{ podcast_consumption.charts.by_year|json_script:"podcast_plays_by_year" }}
+    {% endif %}
+  {% endif %}
+  {% if user.video_enabled and video_consumption.has_data %}
+    {% if show_year_charts %}
+      {{ video_consumption.charts.by_year|json_script:"video_plays_by_year" }}
     {% endif %}
   {% endif %}
 

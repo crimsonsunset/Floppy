@@ -5,16 +5,7 @@ from http import HTTPStatus as HTTP  # noqa: N814
 
 from rest_framework.response import Response
 
-from app.models import (
-    ComicIssue,
-    MediaTypes,
-    MoviePlay,
-    Music,
-    Podcast,
-    Sources,
-    Video,
-    VideoPlay,
-)
+from app.models import ComicIssue, MediaTypes, MoviePlay, Music, Podcast, Sources, Video
 
 from . import helpers
 

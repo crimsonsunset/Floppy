@@ -4,14 +4,17 @@ import datetime
 from http import HTTPStatus as HTTP  # noqa: N814
 
 from django.utils import timezone
-from django.utils.dateparse import parse_date
+from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from app.models import Item, MediaTypes, Video
-from app.stats_youtube import youtube_thumbnail_url
+from app.models import Item, MediaTypes, Status, Video
 
 from .helpers import check_source_type
+
+# Largest value a PositiveIntegerField column stores.
+MAX_SECONDS = 2_147_483_647
+MAX_EXTERNAL_ID_LENGTH = 255
 
 
 def _end_date_from_external_id(external_id):
@@ -45,50 +48,68 @@ class VideoPlayView(APIView):
                 {"detail": "title and externalId are required"},
                 status=HTTP.BAD_REQUEST,
             )
+        if len(external_id) > MAX_EXTERNAL_ID_LENGTH:
+            return Response(
+                {"detail": "externalId is too long"},
+                status=HTTP.BAD_REQUEST,
+            )
         try:
             progress_seconds = int(request.data.get("progressSeconds") or request.data.get("progress_seconds") or 0)
             length_seconds = int(request.data.get("lengthSeconds") or request.data.get("length_seconds") or 0)
         except (TypeError, ValueError):
             return Response({"detail": "seconds must be integers"}, status=HTTP.BAD_REQUEST)
+        # Negative seconds count as zero and huge ones as the column maximum,
+        # so a bad value never reaches the database.
+        progress_seconds = min(max(progress_seconds, 0), MAX_SECONDS)
+        length_seconds = min(max(length_seconds, 0), MAX_SECONDS)
 
-        poster = youtube_thumbnail_url(media_id)
+        # Cut to the column sizes so a long value is stored, not a 500.
+        channel = str(request.data.get("channel") or "")[:255]
+        watch_url = str(request.data.get("url") or "")[:500]
+
+        # The item is shared by every user who tracks this video, so a later
+        # post never renames it.
         item, _created = Item.objects.get_or_create(
             media_id=media_id,
             source=source,
             media_type=MediaTypes.VIDEO.value,
             library_media_type=MediaTypes.VIDEO.value,
-            defaults={"title": title, "image": poster},
+            defaults={"title": title},
         )
-        update_fields = []
-        if item.title != title:
-            item.title = title
-            update_fields.append("title")
-        if poster and (not item.image or str(item.image).startswith("data:")):
-            item.image = poster
-            update_fields.append("image")
-        if item.metadata_fetched_at is None:
-            item.metadata_fetched_at = timezone.now()
-            update_fields.append("metadata_fetched_at")
-        if update_fields:
-            item.save(update_fields=update_fields)
+
+        # The upload date puts the video on the Calendar. It is set once, so a
+        # later report never moves the event.
+        published_at = parse_datetime(
+            str(request.data.get("publishedAt") or request.data.get("published_at") or ""),
+        )
+        if published_at and not item.release_datetime:
+            if timezone.is_naive(published_at):
+                published_at = timezone.make_aware(published_at)
+            item.release_datetime = published_at
+            # Due again on the next Calendar reload, so the event appears.
+            item.calendar_checked_at = None
+            item.save(update_fields=["release_datetime", "calendar_checked_at"])
 
         video, _video_created = Video.objects.get_or_create(
             item=item,
             user=request.user,
             defaults={
-                "channel": str(request.data.get("channel") or ""),
-                "watch_url": str(request.data.get("url") or ""),
-                "length_seconds": max(length_seconds, 0),
+                # The model defaults to Completed, which would fill the
+                # progress bar on creation. The first report decides.
+                "status": Status.IN_PROGRESS.value,
+                "channel": channel,
+                "watch_url": watch_url,
+                "length_seconds": length_seconds,
             },
         )
-        video.channel = str(request.data.get("channel") or video.channel)
-        video.watch_url = str(request.data.get("url") or video.watch_url)
+        video.channel = channel or video.channel
+        video.watch_url = watch_url or video.watch_url
         if length_seconds:
             video.length_seconds = length_seconds
 
         play, created = video.upsert_play(
             external_id,
-            max(progress_seconds, 0),
+            progress_seconds,
             end_date=_end_date_from_external_id(external_id),
         )
         return Response(

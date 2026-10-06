@@ -150,6 +150,21 @@ This fork was brought level with `dannyvfilms/Floppy:latest` by a merge, not com
 | Migrations | Parent and fork migrations joined by `users/0143` and `app/0195` merge migrations. Parent migration files were not edited. |
 | Validation | `makemigrations --check`, `check_migration_hygiene --strict`, `ruff` pass. Test suite pending. |
 
+Second sync, 2026-10-05. Same method. Danny had reimplemented card profiles, video, and listen hooks, so those conflicts took his code. The fork's already-applied migrations were left as they ran.
+
+| Field | Value |
+|---|---|
+| Decision | **Adapted** |
+| Parent tip | `729d4469f` |
+| Fork tip before merge | `b0e955c74` |
+| Merge base | `516fa05a9` |
+| Range | 195 parent commits, 77 fork commits |
+| Card profiles | Live field is `card_metadata`. `0146` copies `tile_metadata` into it. `0150` drops `tile_metadata`. |
+| Video / origin URL | `0195_music_origin_url` and `0197_video` update migration state only. The fork database already has those columns from `0192_music_origin_url` and `0195_video`. |
+| Kept on top of his tree | Recently played album/artist/track rows (open [dannyvfilms/Floppy#1375](https://github.com/dannyvfilms/Floppy/pull/1375)). Home screen drag fix (open [dannyvfilms/Floppy#1447](https://github.com/dannyvfilms/Floppy/pull/1447)). YouTube thumbnail fallback when a video has no poster. |
+| Migrations | Joined by `app/0200` and `users/0149`. `users/0151` gives a Home row both `all` and `video`. |
+| Validation | `makemigrations --check` passes. Test suite not run. |
+
 ## Review and delivery rules
 
 1. Update this ledger before opening implementation for a newly reviewed upstream batch.

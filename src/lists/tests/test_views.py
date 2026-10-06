@@ -21,6 +21,7 @@ from app.models import (
     Season,
     Sources,
     Status,
+    Video,
 )
 from lists import smart_rules
 from lists.feeds import FloppyRssFeed
@@ -1525,6 +1526,36 @@ class ListDetailViewTests(TestCase):
         self.assertEqual(trigger["listCountUpdated"]["count"], 3)
         self.assertEqual(trigger["listCountUpdated"]["label"], "3 items")
 
+    def test_a_video_can_join_a_custom_list(self):
+        """A video is added to a list like any other item and the list renders."""
+        video_item = Item.objects.create(
+            media_id="vid1",
+            source=Sources.YOUTUBE.value,
+            media_type=MediaTypes.VIDEO.value,
+            title="A Listed Video",
+            image="http://example.com/video.jpg",
+        )
+        Video.objects.create(
+            item=video_item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        response = self.client.post(
+            reverse("list_item_toggle"),
+            {"item_id": video_item.id, "custom_list_id": self.custom_list.id},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            CustomListItem.objects.filter(
+                custom_list=self.custom_list, item=video_item
+            ).exists()
+        )
+
+        response = self.client.get(
+            reverse("list_detail", args=[self.custom_list.public_reference])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "A Listed Video")
+
     def test_list_detail_htmx_count_tracks_membership_toggle(self):
         """A refreshed manual-list response reports the committed item count."""
         response = self.client.post(
@@ -2490,7 +2521,7 @@ class ListDetailViewTests(TestCase):
             item=episode_item,
         )
 
-        self.user.tile_metadata = {
+        self.user.card_metadata = {
             "version": 1,
             "types": {
                 "episode": {
@@ -2501,7 +2532,7 @@ class ListDetailViewTests(TestCase):
                 }
             },
         }
-        self.user.save(update_fields=["tile_metadata"])
+        self.user.save(update_fields=["card_metadata"])
 
         response = self.client.get(reverse("list_detail", args=[episode_list.id]))
 

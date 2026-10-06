@@ -659,6 +659,7 @@ def statistics(request):
             "anime_consumption": statistics_data.get("anime_consumption", {}),
             "music_consumption": statistics_data["music_consumption"],
             "podcast_consumption": statistics_data["podcast_consumption"],
+            "video_consumption": statistics_data.get("video_consumption", {}),
             "game_consumption": statistics_data["game_consumption"],
             "book_consumption": statistics_data.get("book_consumption", {}),
             "comic_consumption": statistics_data.get("comic_consumption", {}),
@@ -730,6 +731,7 @@ def statistics(request):
             "movie_consumption": {},
             "music_consumption": {},
             "podcast_consumption": {},
+            "video_consumption": {},
             "game_consumption": {},
             "book_consumption": {},
             "comic_consumption": {},
@@ -817,6 +819,7 @@ def statistics(request):
             "anime_consumption": empty_statistics_data.get("anime_consumption", {}),
             "music_consumption": empty_statistics_data["music_consumption"],
             "podcast_consumption": empty_statistics_data["podcast_consumption"],
+            "video_consumption": empty_statistics_data["video_consumption"],
             "game_consumption": empty_statistics_data["game_consumption"],
             "book_consumption": empty_statistics_data["book_consumption"],
             "comic_consumption": empty_statistics_data["comic_consumption"],
@@ -1250,8 +1253,10 @@ def update_top_talent_sort(request):
             if statistics_cache.range_needs_top_talent_upgrade(
                 request.user.id, range_name
             ):
-                statistics_cache.refresh_statistics_cache(request.user.id, range_name)
-                requires_reload = True
+                refreshed = statistics_cache.refresh_statistics_cache(
+                    request.user.id, range_name
+                )
+                requires_reload = refreshed is not None
         except Exception as exc:  # pragma: no cover - best effort compatibility upgrade
             logger.debug(
                 "top_talent_sort_upgrade_failed user_id=%s range=%s error=%s",

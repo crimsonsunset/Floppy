@@ -584,7 +584,7 @@ class ProviderNotConfiguredError(ProviderAPIError):
         Exception.__init__(self, message)
 
 
-def raise_not_found_error(provider, media_id, media_type="item"):
+def raise_not_found_error(provider, media_id, media_type="item", *, confirmed_absent=False):
     """
     Raise a 404 ProviderAPIError for when a media item is not found.
 
@@ -609,7 +609,9 @@ def raise_not_found_error(provider, media_id, media_type="item"):
     )()
     mock_error = requests.exceptions.HTTPError(response=mock_response)
 
-    raise ProviderAPIError(provider, mock_error, error_msg)
+    error = ProviderAPIError(provider, mock_error, error_msg)
+    error.confirmed_absent = confirmed_absent
+    raise error
 
 
 def _get_tmdb_proxy_url():
@@ -1061,15 +1063,8 @@ def _resolve_podcast_metadata(media_id, source, user=None):
     return None  # unreachable: raise_not_found_error always raises
 
 
-def _video_metadata(media_id, source):
-    """Return stored YouTube metadata. There is no live provider fetch.
-
-    @param media_id - YouTube video id.
-    @param source - Item source, usually youtube.
-    """
-    from app.models import Video
-    from app.stats_youtube import youtube_thumbnail_url
-
+def _resolve_video_metadata(media_id, source):
+    """Build video metadata from the stored item; no provider knows videos."""
     item = Item.objects.filter(
         media_id=media_id,
         source=source,
@@ -1077,13 +1072,11 @@ def _video_metadata(media_id, source):
     ).first()
     if item is None:
         raise_not_found_error(source, media_id, "video")
-        return None
     metadata = _stored_item_metadata(item)
     if not item.image or item.image == settings.IMG_NONE:
+        from app.stats_youtube import youtube_thumbnail_url
+
         metadata["image"] = youtube_thumbnail_url(media_id) or metadata["image"]
-    video = Video.objects.filter(item=item).first()
-    if video is not None and video.watch_url:
-        metadata.setdefault("details", {})["watch_url"] = video.watch_url
     return metadata
 
 
@@ -1099,9 +1092,6 @@ def get_media_metadata(
     episode_order=None,
 ):
     """Return the metadata for the selected media."""
-    if media_type == MediaTypes.VIDEO.value:
-        return _video_metadata(media_id, source)
-
     if media_type in {"tv", "anime", "tv_with_seasons", "season", "episode"}:
         from app.services.order_resolution import active_order, order_from_media_id
 
@@ -1149,13 +1139,18 @@ def get_media_metadata(
 
     def tmdb_season_metadata():
         """Return TMDB season metadata or raise a not-found error."""
-        seasons = tmdb.tv_with_seasons(media_id, season_numbers, language)
-        season_key = f"season/{season_numbers[0]}"
+        missing_seasons = set()
+        seasons = tmdb.tv_with_seasons(
+            media_id, season_numbers, language, missing_seasons=missing_seasons
+        )
+        requested_season = tmdb._normalize_season_numbers(season_numbers)[0]
+        season_key = f"season/{requested_season}"
         if season_key not in seasons:
             raise_not_found_error(
                 Sources.TMDB.value,
                 media_id,
                 media_type=f"season {season_numbers[0]}",
+                confirmed_absent=requested_season in missing_seasons,
             )
         season_data = seasons[season_key]
         if not season_data.get("cast"):
@@ -1276,6 +1271,7 @@ def get_media_metadata(
             source,
             user=user,
         ),
+        MediaTypes.VIDEO.value: lambda: _resolve_video_metadata(media_id, source),
     }
     if media_type == MediaTypes.MUSIC.value:
         # A MusicBrainz MBID is a UUID. Anything else (a title slug, say) can

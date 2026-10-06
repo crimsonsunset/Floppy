@@ -26,7 +26,6 @@ def get_items_to_process(user=None):
             MediaTypes.SEASON,
             MediaTypes.EPISODE,
             MediaTypes.MUSIC,
-            MediaTypes.VIDEO,
         ]
     ]
 

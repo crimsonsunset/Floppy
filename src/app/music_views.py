@@ -1,5 +1,6 @@
 import json
 import logging
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from django.conf import settings
@@ -212,8 +213,7 @@ def _lookup_unlistened_recording(track):
 def _recording_genre_names(recording):
     """Return title-cased genre labels from a MusicBrainz recording payload."""
     return [
-        name.title()
-        for name in _nonempty_genre_names((recording or {}).get("genres"))
+        name.title() for name in _nonempty_genre_names((recording or {}).get("genres"))
     ]
 
 
@@ -256,6 +256,43 @@ def _track_play_history(music_entry):
             },
         )
     return history
+
+
+def _album_display_genres(album):
+    """Return album genres, or the artist's when the album has none."""
+    if album is None:
+        return []
+    return sync_services._music_item_direct_genres(album)
+
+
+def _play_link_label(url):
+    """Return the play-link label for a SoundCloud or Spotify URL."""
+    host = (urlparse(url or "").hostname or "").lower()
+    if host == "soundcloud.com" or host.endswith(".soundcloud.com"):
+        return "SoundCloud"
+    if host == "spotify.com" or host.endswith(".spotify.com"):
+        return "Spotify"
+    return ""
+
+
+def _external_play_links(tracks_with_data):
+    """Return one play chip per distinct SoundCloud or Spotify URL on this album."""
+    links = {}
+    seen_urls = set()
+    for track_data in tracks_with_data:
+        url = track_data.get("origin_url") or ""
+        label = _play_link_label(url)
+        if not label or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        if label in links:
+            label = track_data["track"].title or url
+        base_label, suffix = label, 2
+        while label in links:
+            label = f"{base_label} ({suffix})"
+            suffix += 1
+        links[label] = url
+    return links
 
 
 def _selected_music_release(user, album):
@@ -725,6 +762,7 @@ def _render_music_artist_details(request, artist):
             models.Q(artist=artist) | models.Q(artist_credits__artist=artist),
         )
         .select_related("artist")
+        .prefetch_related("artist_credits__artist")
         .distinct()
         .order_by("-release_date", "title"),
     )
@@ -1329,10 +1367,7 @@ def _render_music_track_details(request, track):
             track_genres = _recording_genre_names(recording)
         recording_display = _recording_display(track, recording)
     album_display_image = album.image or settings.IMG_NONE
-    if (
-        recording_display["image"]
-        and album_display_image in ("", settings.IMG_NONE)
-    ):
+    if recording_display["image"] and album_display_image in ("", settings.IMG_NONE):
         album_display_image = recording_display["image"]
     context = {
         "user": request.user,
@@ -1582,6 +1617,8 @@ def prefetch_artist_covers(request, artist_id):
             models.Q(artist=artist) | models.Q(artist_credits__artist=artist),
         )
         .distinct()
+        .select_related("artist")
+        .prefetch_related("artist_credits__artist")
         .order_by("-release_date", "title"),
     )
 

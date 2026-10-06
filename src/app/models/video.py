@@ -1,6 +1,6 @@
 """YouTube-style video tracker and one play per watched day."""
 
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 from model_utils import FieldTracker
 
@@ -27,42 +27,51 @@ class Video(Media):
         """Create or raise the play for this external id.
 
         @param external_id - Idempotency key, `youtube:<id>:<day>`.
-        @param progress_seconds - Resume position in seconds.
+        @param progress_seconds - Position reached in this report, in seconds.
         @param end_date - When the watch counts. Defaults to now.
         @returns The play and whether it was created.
         """
         when = end_date or timezone.now()
-        completed = (
-            self.length_seconds > 0
-            and progress_seconds >= COMPLETED_RATIO * self.length_seconds
-        )
-        self.progress = progress_seconds
-        self.status = Status.COMPLETED.value if completed else Status.IN_PROGRESS.value
-        self.end_date = when
-        self.save(
-            update_fields=[
-                "progress",
-                "status",
-                "end_date",
-                "channel",
-                "watch_url",
-                "length_seconds",
-            ]
-        )
+        # Two retries of the same report can arrive together. Locking the video
+        # row makes the second wait, so it sees the first one's play and
+        # progress instead of racing to insert the same play.
+        with transaction.atomic():
+            Video.objects.select_for_update().filter(pk=self.pk).first()
+            self.refresh_from_db(fields=["progress", "status", "end_date"])
+            # A report can arrive late or out of order, so nothing here moves
+            # backwards: progress and dates only grow, and a completed video
+            # stays completed when a later day is reported at a lower position.
+            self.progress = max(self.progress, progress_seconds)
+            completed = (
+                self.length_seconds > 0
+                and self.progress >= COMPLETED_RATIO * self.length_seconds
+            )
+            if completed or self.status == Status.COMPLETED.value:
+                self.status = Status.COMPLETED.value
+            else:
+                self.status = Status.IN_PROGRESS.value
+            if not self.end_date or when > self.end_date:
+                self.end_date = when
+            self.save(
+                update_fields=[
+                    "progress",
+                    "status",
+                    "end_date",
+                    "channel",
+                    "watch_url",
+                    "length_seconds",
+                ]
+            )
 
-        play = self.plays.filter(external_id=external_id).first()
-        created = play is None
-        if created:
-            play = VideoPlay.objects.create(
+            play, created = VideoPlay.objects.get_or_create(
                 video=self,
                 external_id=external_id,
-                progress=progress_seconds,
-                end_date=when,
+                defaults={"progress": progress_seconds, "end_date": when},
             )
-        else:
-            play.progress = progress_seconds
-            play.end_date = when
-            play.save(update_fields=["progress", "end_date"])
+            if not created:
+                play.progress = max(play.progress, progress_seconds)
+                play.end_date = max(play.end_date, when)
+                play.save(update_fields=["progress", "end_date"])
         return play, created
 
 
