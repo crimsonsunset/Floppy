@@ -92,10 +92,10 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='homescreenrow',
             name='media_type',
-            field=models.CharField(choices=[('all', 'All media'), ('tv', 'TV Show'), ('season', 'TV Season'), ('episode', 'Episode'), ('movie', 'Movie'), ('anime', 'Anime'), ('manga', 'Manga'), ('game', 'Game'), ('book', 'Book'), ('comic', 'Comic'), ('comicissue', 'Comic Issue'), ('boardgame', 'Board Game'), ('music', 'Music'), ('podcast', 'Podcast')], max_length=16),
+            field=models.CharField(choices=[('all', 'All media'), ('tv', 'TV Show'), ('season', 'TV Season'), ('episode', 'Episode'), ('movie', 'Movie'), ('anime', 'Anime'), ('manga', 'Manga'), ('game', 'Game'), ('book', 'Book'), ('comic', 'Comic'), ('comicissue', 'Comic Issue'), ('boardgame', 'Board Game'), ('music', 'Music'), ('podcast', 'Podcast'), ('video', 'Video')], max_length=16),
         ),
         AddConstraintIfNotExists(
             model_name='homescreenrow',
-            constraint=models.CheckConstraint(condition=models.Q(('media_type__in', ['all', 'tv', 'season', 'movie', 'anime', 'manga', 'game', 'book', 'comic', 'comicissue', 'boardgame', 'music', 'podcast'])), name='home_screen_row_media_type_valid'),
+            constraint=models.CheckConstraint(condition=models.Q(('media_type__in', ['all', 'tv', 'season', 'movie', 'anime', 'manga', 'game', 'book', 'comic', 'comicissue', 'boardgame', 'music', 'podcast', 'video'])), name='home_screen_row_media_type_valid'),
         ),
     ]
