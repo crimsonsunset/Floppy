@@ -139,8 +139,7 @@ Each is its own branch from `upstream/latest`, so none carries the image patch.
 
 - [#1502](https://github.com/dannyvfilms/Floppy/pull/1502) rebased onto `c627799d8` (`33257550b`). `uv lock --check` passed. Ruff passed after sorting the seeder imports.
 - [#1595](https://github.com/dannyvfilms/Floppy/pull/1595) links a stored video watch URL and leaves every other card alone. The new template test passed.
-- [#1596](https://github.com/dannyvfilms/Floppy/pull/1596) pins `DEBUG=False` in the import residency subprocess. The web-process test passed.
-- [#1597](https://github.com/dannyvfilms/Floppy/pull/1597) locks the track-page origin URL. That test passed.
+- [#1596](https://github.com/dannyvfilms/Floppy/pull/1596) holds both small tests: the `DEBUG=False` pin and the track-page origin URL. #1597 was closed into it after CI failed on a stale sidebar class assertion, which this PR also updates.
 
 ### Phase 5: prod cutover (about 1 hr, needs Joe's go)
 
