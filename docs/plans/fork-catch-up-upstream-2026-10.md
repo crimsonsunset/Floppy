@@ -6,7 +6,7 @@ Bring `crimsonsunset/Floppy` `latest` level with [dannyvfilms/Floppy](https://gi
 
 | Field | Value |
 |---|---|
-| Status | Plan, decisions locked, nothing executed |
+| Status | Phases 1–4 done. Phase 5 is waiting on an explicit go. |
 | Branch | `chore/31-fork-catch-up-upstream` |
 | Base | `upstream/latest` @ `c627799d8` (v26.10.15) |
 | Fork tip being replaced | `origin/latest` @ `ede0597a5` |
@@ -17,7 +17,7 @@ Bring `crimsonsunset/Floppy` `latest` level with [dannyvfilms/Floppy](https://gi
 
 | Field | Value |
 |---|---|
-| Gate | 2 (plan ready) |
+| Gate | 3 (stalled on prod cutover) |
 | Ticket | 31 |
 | Branch | chore/31-fork-catch-up-upstream |
 | Repos | floppy |
@@ -111,7 +111,7 @@ Rehearsal files (scratch worktree, snapshot copy) live outside the repo.
 - Open History, Home and a video detail page with the `run-floppy` skill.
 - If anything fails, write the smallest repair (a one-off data migration or SQL) and rerun on a fresh copy until clean. Do not edit upstream's migration files.
 
-**Outcome:** a recorded pass: `migrate` completes on the snapshot copy, `makemigrations --check` is clean, counts match prod, and the three pages render. Or a tested repair script that gets there. Phase 3 does not start without this.
+**Outcome:** met. `migrate` applied `app` `0200`–`0202`, `integrations` `0058`–`0059`, `lists` `0017`, and `users` `0149` on the snapshot copy. `makemigrations --check` reported no changes. Counts were identical before and after (12,799 items: 11,048 episodes, 1,036 music, 399 seasons, 234 videos, 56 shows, 26 movies; 233 `app_video` rows; 243 plays; 1 user). Those are the 02:37 snapshot, not the later live totals. Home, History, and a video detail page returned 200 through Django's test client (`force_login`, `HTTP_HOST=localhost`) because the snapshot user's password is not available for a browser login.
 
 ### Phase 3: reset fork `latest` (about 30 min)
 
@@ -120,7 +120,7 @@ Rehearsal files (scratch worktree, snapshot copy) live outside the repo.
 - Force-push to `origin/latest` with `--force-with-lease` against `ede0597a5`. Reset local `latest` to match.
 - Watch the fork's `Docker Image` workflow publish the new `latest` tag.
 
-**Outcome:** `git rev-list --left-right --count upstream/latest...origin/latest` reads `0 3`, and the fork's CI publishes `ghcr.io/crimsonsunset/floppy:latest` from it.
+**Outcome:** met. `upstream/latest...origin/latest` is `0 3` at `d55735c0e`. Archive tag `archive/fork-latest-2026-10-06` points at `ede0597a5`. Rivendell has no Watchtower, pull policy, or cron, so the push cannot auto-migrate prod. Lint, migration order, CodeQL, and the merge train passed on that push. App tests and the image publish were still running when this was written.
 
 ### Phase 4: leftover PRs (about 3 hr, parallel to Phase 5)
 
@@ -135,7 +135,12 @@ Each is its own branch from `upstream/latest`, so none carries the image patch.
 
 [#1503](https://github.com/dannyvfilms/Floppy/pull/1503) needs no PR. Its search fix is in #1551 and its stats are in #1472.
 
-**Outcome:** each PR is open against `dannyvfilms/Floppy:latest` with a clean diff against `upstream/latest`, and the targeted tests for the touched files pass when Joe asks for a run.
+**Outcome:** met.
+
+- [#1502](https://github.com/dannyvfilms/Floppy/pull/1502) rebased onto `c627799d8` (`33257550b`). `uv lock --check` passed. Ruff passed after sorting the seeder imports.
+- [#1595](https://github.com/dannyvfilms/Floppy/pull/1595) links a stored video watch URL and leaves every other card alone. The new template test passed.
+- [#1596](https://github.com/dannyvfilms/Floppy/pull/1596) pins `DEBUG=False` in the import residency subprocess. The web-process test passed.
+- [#1597](https://github.com/dannyvfilms/Floppy/pull/1597) locks the track-page origin URL. That test passed.
 
 ### Phase 5: prod cutover (about 1 hr, needs Joe's go)
 
