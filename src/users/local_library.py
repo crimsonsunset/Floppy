@@ -13,7 +13,6 @@ from django.utils import timezone
 
 from app.models.choices import MediaTypes, Sources, Status
 from app.models.item import Item
-from users.demo import ensure_demo_user
 from users.card_metadata import (
     CARD_FIELDS,
     DISPLAY_DORMANT,
@@ -21,6 +20,7 @@ from users.card_metadata import (
     PROFILE_TYPES,
     parse_card_metadata,
 )
+from users.demo import ensure_demo_user
 
 LOCAL_USERNAME = "joe"
 LOCAL_PASSWORD = "localtiles"  # noqa: S105
