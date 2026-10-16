@@ -1,13 +1,24 @@
 # Upstream ports and divergence ledger
 
-> **Status:** Initial baseline accepted
-> **Parent issue:** [#645](https://github.com/dannyvfilms/Floppy/issues/645)
-> **Floppy review baseline:** `latest` at `3cefbadfd7a9c092918ce6cb2f728b804cc193bb`
-> **Yamtrack review baseline:** `dev` at `85646a36298d61d39544f80eacf541c232c4df7b` (`0.26.1`)
-> **Common ancestor:** `88c92c9cfb5b41f807a8e9b82c4dd77f3d7723c4`
-> **Reviewed range:** 138 Yamtrack-only commits and 1,703 Floppy-only commits
-> **Last upstream review:** 2026-08-11
-> **Next comparison:** `85646a36298d61d39544f80eacf541c232c4df7b..upstream/dev`
+> **Status:** Fork `latest` reset onto dannyvfilms/Floppy `latest` (2026-10-16)
+> **Live upstream:** [dannyvfilms/Floppy](https://github.com/dannyvfilms/Floppy) `latest` at `c627799d8a620db5812956e816530b5d9be92a8a` (v26.10.15)
+> **Fork difference:** the image name in `.github/workflows/docker-image.yml` (`ghcr.io/crimsonsunset/floppy`)
+> **Next comparison:** `c627799d8a620db5812956e816530b5d9be92a8a..upstream/latest`
+> **Parent issue:** [#31](https://github.com/crimsonsunset/Floppy/issues/31)
+
+## 2026-10-16 reset
+
+| Decision | What | Evidence |
+|---|---|---|
+| **Taken** | Replace fork `latest` with `upstream/latest` plus the image-name patch. The 85 fork-only commits were Joe's PRs, which upstream had already re-landed. | Rehearsal on prod snapshot `db-20261016T083700Z-0cd40a9b.sqlite3`: `migrate` applied `app` `0200`–`0202`, `integrations` `0058`–`0059`, `lists` `0017`, `users` `0149`. Item counts were unchanged (12,799 items, 234 videos, 243 video plays, 1 user). Home, History, and a video detail page returned 200. |
+
+The sections below are the 2026-08-11 Yamtrack review. They are history. The live comparison is `upstream/latest`.
+
+> **Historical Floppy baseline:** `latest` at `3cefbadfd7a9c092918ce6cb2f728b804cc193bb`
+> **Historical Yamtrack baseline:** `dev` at `85646a36298d61d39544f80eacf541c232c4df7b` (`0.26.1`)
+> **Historical common ancestor:** `88c92c9cfb5b41f807a8e9b82c4dd77f3d7723c4`
+> **Historical reviewed range:** 138 Yamtrack-only commits and 1,703 Floppy-only commits
+> **Historical last review:** 2026-08-11
 
 ## Contract
 
@@ -139,7 +150,7 @@ The **Canonical upstream SHA(s)** column is the machine-audited inventory for `8
 ## Review and delivery rules
 
 1. Update this ledger before opening implementation for a newly reviewed upstream batch.
-2. Preserve the `upstream` branch as an exact mirror; never merge or rebase it into `latest`.
+2. Keep fork `latest` equal to `upstream/latest` plus the image-name patch. Pull requests to dannyvfilms/Floppy start from `upstream/latest`.
 3. Port tests aggressively, but reimplement models and migrations against Floppy's current bounded contexts and migration graph.
 4. Do not combine uv conversion with dependency upgrades, and do not treat dependency-bot SHAs as port units.
 5. Never silently delete user data. Audit, deterministically repair, export, or quarantine before enforcing constraints.
@@ -155,8 +166,8 @@ Every upstream-derived PR must identify the ledger outcome, upstream provenance,
 
 For each incremental review:
 
-1. Fetch Yamtrack `dev` without editing the mirror branch.
-2. Compare the stored baseline with `upstream/dev`.
+1. Fetch `dannyvfilms/Floppy` `latest`.
+2. Compare the stored baseline with `upstream/latest`.
 3. Group commits into coherent outcomes and verify issue/PR/code history in both repositories.
 4. Add each new canonical SHA exactly once, with a decision and evidence or owner/trigger.
 5. Create or link scoped issues only for accepted Pending work.

@@ -258,15 +258,16 @@ Oververbosity:low
 Floppy is a Django 5.2 app for self-hosted media tracking with Celery workers and Redis. Tailwind CSS output is committed under `src/static/css/`, and templates load `src/static/css/main.css` via `src/templates/base.html`.
 
 ## Branch Policy
-- `upstream` (formerly named `dev` in this fork) must be an exact mirror of `FuzzyGrim/Yamtrack:dev`. Never commit to it, target it with a PR, or add fork-only edits. Refresh it only by exact fast-forward/reset to the upstream remote.
-- `latest` is the fork integration branch for day-to-day work and semantic upstream ports. Do not merge or rebase `upstream` into `latest`.
-- `release` is for versioned release/container publication flow, not the primary integration branch.
+- The `upstream` remote is `dannyvfilms/Floppy`. Its integration branch is `latest`.
+- Fork `latest` is `upstream/latest` plus the image-name patch in `.github/workflows/docker-image.yml` (`ghcr.io/crimsonsunset/floppy`). Do not add other fork-only commits to it.
+- Pull requests to dannyvfilms/Floppy branch from `upstream/latest`, so the image patch never rides along.
+- `release` is for versioned release and container publication, not day-to-day integration.
 
 ## Upstream Resolution Workflow
 
 [`UPSTREAM_PORTS.md`](UPSTREAM_PORTS.md) is the durable source of truth. “Up to date” means zero unclassified upstream outcomes, not matching Git histories.
 
-For each new outcome in `last-reviewed..upstream/dev`:
+For each new outcome in `last-reviewed..upstream/latest`:
 
 1. Record the canonical upstream commits and group related implementation, tests, migrations, and repairs.
 2. Choose exactly one evidence-backed decision: Ported, Adapted, Superseded, Deferred, Discarded, or Pending with an owner issue.
