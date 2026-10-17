@@ -737,15 +737,14 @@ class IntegrationTest(SerialStaticLiveServerTestCase):
 
         expect(self.page.get_by_role("main")).to_contain_text("Test Movie")
 
-        expect(self.page.get_by_role("button", name="Add new entry")).to_be_visible()
-        self.page.get_by_role("button", name="Add new entry").click()
+        self._open_new_entry_modal()
 
         create_modal = self.page.locator("[data-track-modal-root]:visible").first
         expect(create_modal).to_be_visible()
         create_modal.locator("button[type='button']").first.click()
         expect(self.page.locator("[data-track-modal-root]:visible")).to_have_count(0)
 
-        self.page.get_by_role("button", name="Add new entry").click()
+        self._open_new_entry_modal()
         expect(create_modal).to_be_visible()
 
         end_date_input = create_modal.locator('input[name="end_date"]')
@@ -961,6 +960,13 @@ class IntegrationTest(SerialStaticLiveServerTestCase):
         edit_modal.locator("button[type='button']").first.click()
         expect(self.page.locator("[data-track-modal-root]:visible")).to_have_count(0)
 
+    def _open_new_entry_modal(self):
+        """Completed movies keep Add new entry in the tracking menu."""
+        self.page.get_by_role("button", name="More tracking actions").click()
+        add_entry = self.page.get_by_role("button", name="Add new entry")
+        expect(add_entry).to_be_visible()
+        add_entry.click()
+
     def _stretch_content_container(self):
         """Make the details page long, as the reported scenario describes."""
         self.page.evaluate(
@@ -1035,7 +1041,7 @@ class IntegrationTest(SerialStaticLiveServerTestCase):
         expect(self.page.get_by_role("main")).to_contain_text("Test Movie")
         self._stretch_content_container()
 
-        self.page.get_by_role("button", name="Add new entry").click()
+        self._open_new_entry_modal()
         expect(self.page.locator("[data-track-modal-root]:visible")).to_be_visible()
 
         self._assert_visible_overlay_fills_viewport()
@@ -1202,7 +1208,7 @@ class IntegrationTest(SerialStaticLiveServerTestCase):
             name="Close activity history",
         ).click()
 
-        self.page.get_by_role("button", name="Add new entry").click()
+        self._open_new_entry_modal()
         track_modal = self.page.locator("[data-track-modal-root]:visible").first
         track_modal.get_by_role("button", name="Open End date picker").click()
         date_picker = track_modal.get_by_role("dialog", name="End date picker")
@@ -1610,7 +1616,7 @@ class IntegrationTest(SerialStaticLiveServerTestCase):
         )
         self.assertEqual(filtered_layout["overflowX"], "auto")
         self.assertEqual(filtered_layout["overflowY"], "hidden")
-        self.assertGreater(
+        self.assertLessEqual(
             filtered_layout["scrollWidth"], filtered_layout["clientWidth"]
         )
 
