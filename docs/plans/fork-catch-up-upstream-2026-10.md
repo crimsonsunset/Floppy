@@ -6,7 +6,7 @@ Bring `crimsonsunset/Floppy` `latest` level with [dannyvfilms/Floppy](https://gi
 
 | Field | Value |
 |---|---|
-| Status | Phases 1–4 done. Phase 5 is waiting on an explicit go. |
+| Status | Done. Rivendell is on `3a86ff6bd`. |
 | Branch | `chore/31-fork-catch-up-upstream` |
 | Base | `upstream/latest` @ `c627799d8` (v26.10.15) |
 | Fork tip being replaced | `origin/latest` @ `ede0597a5` |
@@ -17,7 +17,7 @@ Bring `crimsonsunset/Floppy` `latest` level with [dannyvfilms/Floppy](https://gi
 
 | Field | Value |
 |---|---|
-| Gate | 3 (stalled on prod cutover) |
+| Gate | 5 (on Rivendell) |
 | Ticket | 31 |
 | Branch | chore/31-fork-catch-up-upstream |
 | Repos | floppy |
@@ -149,7 +149,7 @@ Each is its own branch from `upstream/latest`, so none carries the image patch.
 - Verify against the Phase 2 numbers: item counts, video rows, History, Home, track detail, one scrobble or webhook round trip.
 - Rollback if it fails: stop the container, restore the pre-cutover snapshot, pin the old digest.
 
-**Outcome:** `https://track.joe-hassio.com` runs the new image with `showmigrations` showing upstream `app` `0200` to `0202` applied, counts unchanged, and a recorded rollback command that was not needed.
+**Outcome:** met on 2026-10-16. Pre-cutover snapshot `db-20261017T000917Z-8ab34d9d.sqlite3`. Running image `sha256:ffe382e5de17fc00ffae2c69df20dce3422e39c617cb62f11864a8119eb29df2`, revision `3a86ff6bd`, healthy. Migrations `app.0200`–`0202`, `integrations.0058`–`0059`, `lists.0017`, and `users.0149_onboarding_metadata_step` applied. Live counts match the snapshot except one music row written while the new image was downloading (1,049 vs 1,048). `https://track.joe-hassio.com/` returns 302 to login. Rollback, if needed: stop `floppy`, copy that snapshot over `/floppy/db/db.sqlite3`, and start `sha256:3e29e734f8e93b749a896b1d0c54f07bd5cec04df71a8c2fb00364bd02bae1bc`. Not used.
 
 ## Key files referenced
 
