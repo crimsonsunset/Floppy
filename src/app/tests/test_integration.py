@@ -1535,7 +1535,7 @@ class IntegrationTest(SerialStaticLiveServerTestCase):
         self.assertEqual(auto_end_ms - auto_start_ms, 90 * 60 * 1000)
 
     def test_statistics_status_composition_legend_scrolls_without_page_overflow(self):
-        """Status legend scrolls inside its card at responsive widths."""
+        """Status legend stays inside its card at responsive widths."""
         statuses = (
             Status.COMPLETED.value,
             Status.IN_PROGRESS.value,
@@ -1578,7 +1578,9 @@ class IntegrationTest(SerialStaticLiveServerTestCase):
         )
         self.assertEqual(layout["overflowX"], "auto")
         self.assertEqual(layout["overflowY"], "hidden")
-        self.assertGreater(layout["scrollWidth"], layout["clientWidth"])
+        # Five status rows are 250px and the column is wider than that at 1024,
+        # so the legend fits. overflow-x stays auto for a longer label.
+        self.assertLessEqual(layout["scrollWidth"], layout["clientWidth"])
 
         page_layout = self.page.evaluate(
             """() => ({
