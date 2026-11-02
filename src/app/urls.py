@@ -1,6 +1,14 @@
 from django.urls import path, register_converter
 
-from app import checkin_views, converters, episode_order_views, views
+from app import (
+    checkin_views,
+    converters,
+    cover_views,
+    episode_order_views,
+    media_details_views,
+    progress_views,
+    views,
+)
 from app.discover import feeds as discover_feeds
 
 register_converter(converters.MediaTypeChecker, "media_type")
@@ -8,15 +16,32 @@ register_converter(converters.SourceChecker, "source")
 
 
 urlpatterns = [
+    path("youtube-player", media_details_views.youtube_player, name="youtube_player"),
+    path("progress/cancel-rewatch/", progress_views.cancel_progress_rewatch, name="cancel_progress_rewatch"),
     path(
         "tv/<int:tv_id>/episode-ordering/",
         episode_order_views.episode_ordering_settings,
         name="episode_ordering_settings",
     ),
     path(
+        "progress/tv/<int:tv_id>/",
+        progress_views.tv_progress_breakdown,
+        name="tv_progress_breakdown",
+    ),
+    path(
+        "progress/season/<int:season_id>/",
+        progress_views.season_progress_breakdown,
+        name="season_progress_breakdown",
+    ),
+    path(
         "image-cache/<str:token>",
         views.serve_image_cache,
         name="image_cache",
+    ),
+    path(
+        "covers/<str:name>",
+        cover_views.serve_local_cover,
+        name="local_cover",
     ),
     path("", views.home, name="home"),
     path("discover", views.discover_page, name="discover"),
@@ -167,6 +192,16 @@ urlpatterns = [
         "details/image/<int:item_id>",
         views.update_item_image,
         name="update_item_image",
+    ),
+    path(
+        "details/cover/<int:item_id>",
+        cover_views.update_item_cover,
+        name="update_item_cover",
+    ),
+    path(
+        "details/cover/<int:item_id>/candidates",
+        cover_views.item_cover_candidates,
+        name="item_cover_candidates",
     ),
     path(
         "details/metadata/<int:item_id>",
@@ -346,7 +381,11 @@ urlpatterns = [
         views.home_rows_artwork_refresh,
         name="home_rows_artwork_refresh",
     ),
-    path("home/rest/", views.home_rest_fragment, name="home_rest_fragment"),
+    path(
+        "home/row/<int:row_id>/",
+        views.home_row_fragment,
+        name="home_row_fragment",
+    ),
     path(
         "music/artist/<int:artist_id>/update-score/",
         views.update_artist_score,
@@ -498,6 +537,11 @@ urlpatterns = [
         "collection/season/<int:season_item_id>/remove/",
         views.collection_remove_season,
         name="collection_remove_season",
+    ),
+    path(
+        "collection/season/<int:season_item_id>/update/",
+        views.collection_update_season,
+        name="collection_update_season",
     ),
     path(
         "collection/modal/<source:source>/<media_type:media_type>/<path:media_id>/",

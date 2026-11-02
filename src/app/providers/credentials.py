@@ -84,8 +84,10 @@ class ProviderCredentialSpec:
     user_scope: bool = False
     user_storage: str = USER_STORAGE_GENERIC
     logo_slug: str = ""
+    media_tags: tuple[str, ...] = ()
     validator: object = None
     user_fields: tuple[str, ...] = dataclass_field(default_factory=tuple)
+    setup_hint: str = ""
 
     def personal_fields(self):
         """Return the fields a user may override personally."""
@@ -265,6 +267,7 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
     for spec in (
         ProviderCredentialSpec(
             slug="tvdb",
+            media_tags=("screen", "anime_manga"),
             user_scope=True,
             validator=_validate_tvdb,
             label="TheTVDB",
@@ -277,6 +280,7 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="hardcover",
+            media_tags=("reading",),
             user_scope=True,
             validator=_validate_hardcover,
             label="Hardcover",
@@ -286,6 +290,7 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="googlebooks",
+            media_tags=("reading",),
             user_scope=True,
             validator=_validate_googlebooks,
             label="Google Books",
@@ -295,6 +300,7 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="steam",
+            media_tags=("games",),
             group=GROUP_ACCOUNTS,
             user_scope=True,
             validator=_validate_steam,
@@ -305,6 +311,7 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="lastfm",
+            media_tags=("music",),
             group=GROUP_ACCOUNTS,
             user_scope=True,
             label="Last.fm",
@@ -314,6 +321,7 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="tmdb",
+            media_tags=("screen", "anime_manga"),
             user_scope=True,
             validator=_validate_tmdb,
             label="TMDB",
@@ -323,19 +331,47 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="mal",
+            media_tags=("anime_manga",),
             user_scope=True,
             label="MyAnimeList",
             logo_slug="myanimelist",
-            description="Anime and manga metadata.",
+            description="Anime and manga metadata, and syncing watch status back.",
             docs_url="https://myanimelist.net/apiconfig",
-            fields=(CredentialField("client_id", "Client ID", "MAL_API"),),
+            fields=(
+                CredentialField("client_id", "Client ID", "MAL_API"),
+                CredentialField(
+                    "client_secret",
+                    "Client secret",
+                    "MAL_API_SECRET",
+                    required=False,
+                    placeholder="Sync to MyAnimeList: set with the Client ID from the same app",
+                ),
+            ),
+        ),
+        ProviderCredentialSpec(
+            slug="wetrakr",
+            media_tags=("screen",),
+            group=GROUP_ACCOUNTS,
+            user_scope=True,
+            label="WeTrakr",
+            description="Sending your plays, statuses and ratings to WeTrakr.",
+            docs_url="https://api.wetrakr.com/",
+            fields=(CredentialField("client_id", "App key", "WETRAKR_CLIENT_ID"),),
         ),
         ProviderCredentialSpec(
             slug="igdb",
+            media_tags=("games",),
             user_scope=True,
             label="IGDB",
             description="Game metadata, authenticated through Twitch.",
-            docs_url="https://api-docs.igdb.com/#account-creation",
+            docs_url="https://dev.twitch.tv/console/apps/create",
+            setup_hint=(
+                "Register an application with the Twitch Developer Console. "
+                "Set OAuth Redirect URL to https://localhost (Floppy only uses "
+                "client credentials, so it is never called), Category to "
+                "Application Integration, and Client Type to Confidential. "
+                "Then click Manage and New Secret."
+            ),
             fields=(
                 CredentialField("client_id", "Client ID", "IGDB_ID"),
                 CredentialField("client_secret", "Client secret", "IGDB_SECRET"),
@@ -343,6 +379,7 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="steamgriddb",
+            media_tags=("games",),
             user_scope=True,
             validator=_validate_steamgriddb,
             label="SteamGridDB",
@@ -352,15 +389,17 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="thegamesdb",
+            media_tags=("games",),
             user_scope=True,
             validator=_validate_thegamesdb,
             label="TheGamesDB",
             description="Extra coverage. Clear logos and fanart.",
-            docs_url="https://forums.thegamesdb.net/viewforum.php?f=10",
+            docs_url="https://api.thegamesdb.net/key.php",
             fields=(CredentialField("api_key", "API key", "THEGAMESDB_API_KEY"),),
         ),
         ProviderCredentialSpec(
             slug="screenscraper",
+            media_tags=("games",),
             user_scope=True,
             label="ScreenScraper",
             description="Retro artwork. An account raises your limits.",
@@ -373,6 +412,7 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="opencritic",
+            media_tags=("games",),
             user_scope=True,
             label="OpenCritic",
             description="Critic scores for games. The free RapidAPI plan is enough.",
@@ -380,7 +420,24 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
             fields=(CredentialField("api_key", "RapidAPI key", "OPENCRITIC_API_KEY"),),
         ),
         ProviderCredentialSpec(
+            slug="podcastindex",
+            media_tags=("podcasts",),
+            user_scope=True,
+            label="Podcast Index",
+            description="Open podcast directory. Finds shows other sources miss.",
+            docs_url="https://api.podcastindex.org/signup",
+            fields=(
+                CredentialField("api_key", "API key", "PODCASTINDEX_API_KEY"),
+                CredentialField(
+                    "api_secret",
+                    "API secret",
+                    "PODCASTINDEX_API_SECRET",
+                ),
+            ),
+        ),
+        ProviderCredentialSpec(
             slug="bgg",
+            media_tags=("games",),
             user_scope=True,
             label="BoardGameGeek",
             description="Board game metadata.",
@@ -389,6 +446,7 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="comicvine",
+            media_tags=("reading",),
             user_scope=True,
             label="Comic Vine",
             description="Comic and graphic novel metadata.",
@@ -397,6 +455,7 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="gcd",
+            media_tags=("reading",),
             user_scope=True,
             validator=_validate_gcd,
             label="Grand Comics Database",
@@ -412,6 +471,7 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="trakt",
+            media_tags=("screen",),
             group=GROUP_ACCOUNTS,
             user_scope=True,
             validator=_validate_trakt,
@@ -431,6 +491,7 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="anilist",
+            media_tags=("anime_manga",),
             group=GROUP_ACCOUNTS,
             user_scope=True,
             label="AniList",
@@ -443,10 +504,11 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
         ),
         ProviderCredentialSpec(
             slug="simkl",
+            media_tags=("screen", "anime_manga"),
             group=GROUP_ACCOUNTS,
             user_scope=True,
             label="SIMKL",
-            description="SIMKL account import.",
+            description="SIMKL account import. Needs a “Server apps & services” app's Client ID and secret.",
             docs_url="https://simkl.com/settings/developer/",
             fields=(
                 CredentialField("client_id", "Client ID", "SIMKL_ID"),
@@ -460,8 +522,9 @@ REGISTRY: dict[str, ProviderCredentialSpec] = {
 # Threading a user argument through every provider function would mean touching
 # ~150 signatures across TMDB, TVDB and friends. Instead the request-serving
 # user is published here, mirroring services.interactive_request_scope(). A
-# Celery task runs no middleware, so this stays unset there and background work
-# keeps using the instance key.
+# Celery task runs no middleware, so a task acting for one user (an import, a
+# webhook, a sync) must open this scope itself; work that does not keeps using
+# the instance key.
 _current_user: contextvars.ContextVar = contextvars.ContextVar(
     "_provider_credential_user",
     default=None,
@@ -687,6 +750,31 @@ def get(slug, field_name, user=None):
         or _instance_map().get(slug, {}).get(field_name, "")
         or default_value(field)
     )
+
+
+def get_together(slug, field_names, user=None):
+    """Return several fields from the first tier that supplies all of them.
+
+    For credentials that only work as a set, like an OAuth client ID and
+    secret: resolving each field on its own can pair values from two
+    different apps. Returns empty strings when no single tier has them all.
+    """
+    user = _resolve_user(user)
+    spec = REGISTRY.get(slug)
+    fields = [get_field(slug, name) for name in field_names]
+    if spec is None or None in fields:
+        return tuple("" for _ in field_names)
+    tiers = (
+        lambda field: user_value(spec, field, user),
+        env_value,
+        lambda field: _instance_map().get(slug, {}).get(field.name, ""),
+        default_value,
+    )
+    for tier in tiers:
+        values = tuple(tier(field) for field in fields)
+        if all(values):
+            return values
+    return tuple("" for _ in field_names)
 
 
 def cache_suffix(slug, *field_names, user=None):

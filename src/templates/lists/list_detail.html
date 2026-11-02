@@ -2,14 +2,17 @@
 {% load i18n %}
 
 {% load static %}
-{% load app_tags %}
+{% load app_tags alphabet_tags %}
 
 {% block title %}
   {{ custom_list }} - Floppy
 {% endblock title %}
 
 {# djlint:off #}
+{% block alphabet_filter %}{% alphabet_filter "filter-form" %}{% endblock alphabet_filter %}
+
 {% block content %}
+  <div class="alphabet-surface">
   {% include "app/components/filter_toolbar_scripts.html" %}
   {% url 'list_detail' custom_list.public_reference as list_filter_endpoint %}
   {# Form CSS lives in the content block so boosted navigation keeps it #}
@@ -91,6 +94,9 @@
                  x-transition:leave="transition ease-in duration-75"
                  x-transition:leave-start="transform opacity-100 scale-100"
                  x-transition:leave-end="transform opacity-0 scale-95">
+              {% if request.user.is_authenticated %}
+                {% include "lists/components/sidebar_pin_action.html" %}
+              {% endif %}
               <a href="{% url 'list_add_item' custom_list.id %}"
                  class="block w-full px-4 py-2 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-colors">
                 {% translate "Add New Item" %}
@@ -156,6 +162,9 @@
                  x-transition:leave="transition ease-in duration-75"
                  x-transition:leave-start="transform opacity-100 scale-100"
                  x-transition:leave-end="transform opacity-0 scale-95">
+              {% if request.user.is_authenticated %}
+                {% include "lists/components/sidebar_pin_action.html" %}
+              {% endif %}
               {% if recommendation_count > 0 %}
                 <a href="{% url 'recommend_item' custom_list.id %}"
                    class="block w-full px-4 py-2 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-colors">
@@ -217,6 +226,9 @@
              x-transition:leave="transition ease-in duration-75"
              x-transition:leave-start="transform opacity-100 scale-100"
              x-transition:leave-end="transform opacity-0 scale-95">
+              {% if request.user.is_authenticated %}
+                {% include "lists/components/sidebar_pin_action.html" %}
+              {% endif %}
           <a href="{% url 'list_add_item' custom_list.id %}"
              class="block w-full px-4 py-2 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-colors">
             {% translate "Add New Item" %}
@@ -281,6 +293,9 @@
              x-transition:leave="transition ease-in duration-75"
              x-transition:leave-start="transform opacity-100 scale-100"
              x-transition:leave-end="transform opacity-0 scale-95">
+              {% if request.user.is_authenticated %}
+                {% include "lists/components/sidebar_pin_action.html" %}
+              {% endif %}
           {% if recommendation_count > 0 %}
             <a href="{% url 'recommend_item' custom_list.id %}"
                class="block w-full px-4 py-2 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-colors">
@@ -642,6 +657,8 @@
         {% else %}
           {% include "lists/components/media_grid.html" %}
         {% endif %}
+      {% elif request.GET.initial|alphabet_initial %}
+        {% alphabet_filter "filter-form" "empty" %}
       {% else %}
       {% if items_count %}
         {% if request.GET.q or has_media_type_filter %}
@@ -722,6 +739,7 @@
     </div>
     </div>
   {% if can_edit %}</div>{% endif %}
+  </div>
 {% endblock content %}
 {# djlint:on #}
 

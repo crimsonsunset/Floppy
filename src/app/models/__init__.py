@@ -9,6 +9,7 @@ from app.models.choices import (
     Sources,
     Status,
 )
+from app.models.consumption_batch import ConsumptionBatchItem
 from app.models.credits import (
     CREDITS_BACKFILL_VERSION,
     DISCOVER_MOVIE_METADATA_BACKFILL_VERSION,
@@ -91,6 +92,7 @@ from app.models.provider_credential import (
     InstanceProviderCredential,
     UserProviderCredential,
 )
+from app.models.rewatch import RewatchCancellation
 from app.models.statistics import (
     StatisticsDirtyDay,
     StatisticsSnapshot,
@@ -104,6 +106,7 @@ from app.models.tv import (
     Season,
 )
 from app.models.video import Video, VideoPlay
+from app.models.video_game_tag import VideoGameLink, VideoGameTag
 from app.models.watch_state import (
     WatchState,
     WatchStateChange,
@@ -142,6 +145,7 @@ __all__ = [
     "CollectionFieldType",
     "Comic",
     "ComicIssue",
+    "ConsumptionBatchItem",
     "CreditRoleType",
     "DeletedMedia",
     "DiscoverApiCache",
@@ -183,6 +187,7 @@ __all__ = [
     "ProgressChangeKind",
     "ProviderMetadataStatus",
     "RewatchAlreadyCompleteError",
+    "RewatchCancellation",
     "Season",
     "Sources",
     "StatisticsDirtyDay",
@@ -194,6 +199,8 @@ __all__ = [
     "Track",
     "UserProviderCredential",
     "Video",
+    "VideoGameLink",
+    "VideoGameTag",
     "VideoPlay",
     "WatchState",
     "WatchStateChange",

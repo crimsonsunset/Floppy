@@ -1,3 +1,4 @@
+(() => {
 // Mirrors app/config.py's MEDIA_TYPE_CONFIG stats_color + svg_icon fields so
 // the Average Rating card's icons match the rest of the app without a round
 // trip to the server for markup that's identical across every user.
@@ -691,8 +692,8 @@ function dateRangePicker(options = {}) {
     },
 
     getDateFormat() {
-      const scriptTag = document.querySelector("script[data-date-format]");
-      const selectedFormat = scriptTag?.dataset.dateFormat;
+      const formatElement = document.querySelector("[data-date-format]");
+      const selectedFormat = formatElement?.dataset.dateFormat;
       const dateFormats = this.getDateFormatValues();
 
       if (
@@ -965,3 +966,5 @@ if (typeof window !== "undefined") {
   // The separate asset is loaded outside the inline Alpine scope.
   window.dateRangePicker = dateRangePicker;
 }
+
+})();

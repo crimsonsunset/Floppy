@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import UUID
@@ -25,6 +25,18 @@ from app.models import (
 )
 from app.templatetags import app_tags
 from users.models import DateFormatChoices, TimeFormatChoices
+
+
+class FutureDateTests(SimpleTestCase):
+    def test_only_known_dates_after_today_are_future(self):
+        today = timezone.localdate()
+        for value in (None, "", "invalid", "2026-02-30", today, today - timedelta(days=1)):
+            with self.subTest(value=value):
+                self.assertFalse(app_tags.is_future_date(value))
+        tomorrow = today + timedelta(days=1)
+        self.assertTrue(app_tags.is_future_date(tomorrow))
+        self.assertTrue(app_tags.is_future_date(tomorrow.isoformat()))
+        self.assertTrue(app_tags.is_future_date(datetime.combine(tomorrow, datetime.min.time(), tzinfo=UTC)))
 
 
 class AppTagsTests(TestCase):
@@ -104,6 +116,14 @@ class AppTagsTests(TestCase):
         mock_stat.side_effect = OSError()
         result = app_tags.get_static_file_mtime("nonexistent.css")
         self.assertEqual(result, "")
+
+    def test_related_section_label(self):
+        """DLCs keep their acronym casing; other sections are title-cased."""
+        self.assertEqual(app_tags.related_section_label("dlcs"), "DLCs")
+        self.assertEqual(
+            app_tags.related_section_label("standalone_expansions"),
+            "Standalone Expansions",
+        )
 
     def test_no_underscore(self):
         """Test the no_underscore filter."""

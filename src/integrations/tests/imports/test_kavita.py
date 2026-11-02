@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import requests
 from django.contrib.auth import get_user_model
+from django.db import OperationalError
+from django.db.models.query import QuerySet
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django_celery_beat.models import PeriodicTask
@@ -114,6 +116,29 @@ class KavitaImporterTests(TestCase):
         self.assertEqual(counts["created"], 1)
         self.assertEqual(counts[MediaTypes.MANGA.value], 1)
         self.assertEqual(warnings, "")
+
+    def test_write_retries_when_sqlite_reports_a_lock(self):
+        """A lock that fails the first write at once must not abort the sync."""
+        real = QuerySet.update_or_create
+        failures = []
+
+        def locked_once(queryset, *args, **kwargs):
+            if queryset.model is Manga and not failures:
+                failures.append(1)
+                raise OperationalError("database is locked")
+            return real(queryset, *args, **kwargs)
+
+        series = _series(1, malId=13, pages=60, pages_read=40)
+        chapters = [_chapter(11, pages_read=20, number=1)]
+        with (
+            patch.object(QuerySet, "update_or_create", locked_once),
+            patch("app.db_retry.time.sleep"),
+        ):
+            counts, _warnings = self._sync([series], {1: _detail(MANGA, chapters)})
+
+        self.assertEqual(failures, [1])
+        self.assertEqual(Manga.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(counts["created"], 1)
 
     @patch(
         "integrations.imports.reading_server.import_progress.get_current_import_run_id"
@@ -876,14 +901,20 @@ class KavitaViewTests(TestCase):
         mock_delay.assert_called_once_with(user_id=self.user.id, mode="overwrite")
 
     def test_import_page_shows_kavita_and_komga(self):
-        response = self.client.get(reverse("import_data"))
+        response = self.client.get(reverse("provider_detail", args=["kavita"]) + "?tab=import")
 
         self.assertContains(
             response,
             "Sync book, comic and manga reading progress from Kavita.",
         )
-        self.assertContains(response, reverse("kavita_connect"))
-        self.assertContains(response, reverse("komga_connect"))
+        connection_url = reverse("provider_detail", args=["kavita"]) + "?tab=connection"
+        self.assertContains(response, connection_url)
+        self.assertContains(self.client.get(connection_url), reverse("kavita_connect"))
+        self.assertNotContains(response, reverse("komga_connect"))
+        komga_response = self.client.get(reverse("provider_detail", args=["komga"]) + "?tab=import")
+        komga_connection_url = reverse("provider_detail", args=["komga"]) + "?tab=connection"
+        self.assertContains(komga_response, komga_connection_url)
+        self.assertContains(self.client.get(komga_connection_url), reverse("komga_connect"))
 
 
 class ProviderItemRaceTests(TestCase):
