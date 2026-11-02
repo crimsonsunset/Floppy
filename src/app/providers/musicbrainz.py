@@ -758,42 +758,49 @@ def get_release_group_genres(release_group_id: str) -> list[str]:
     return genres
 
 
-def get_genre_mbid(genre_name: str) -> str:
-    """Return the MusicBrainz genre MBID for a display name, or an empty string."""
-    normalized_name = str(genre_name or "").strip()
-    if not normalized_name:
-        return ""
+def _get_genre_mbids_by_name() -> dict[str, str]:
+    """Return a lowercase genre name to MBID map built from ``genre/all``.
 
-    cache_key = f"musicbrainz_genre_mbid_v3_{normalized_name.lower()}"
+    MusicBrainz has no genre search endpoint (``genre?query=`` returns 501), so
+    the full list is paged once and cached. A failed fetch is cached briefly as
+    an empty map so an outage does not retry on every lookup.
+    """
+    cache_key = "musicbrainz_genre_mbid_map_v1"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
 
-    query = f'name:"{normalized_name}"'
+    mbids_by_name: dict[str, str] = {}
+    offset = 0
+    page_size = 100
     try:
-        response = _mb_request(
-            "genre",
-            {"query": query},
-        )
+        while True:
+            response = _mb_request("genre/all", {"limit": page_size, "offset": offset})
+            genres = response.get("genres") or []
+            for genre in genres:
+                name = str(genre.get("name") or "").strip().lower()
+                if name and genre.get("id"):
+                    mbids_by_name[name] = genre["id"]
+            offset += page_size
+            if not genres or offset >= response.get("genre-count", 0):
+                break
     except Exception as exc:  # pragma: no cover - defensive
         logger.debug(
-            "Failed to resolve MusicBrainz genre MBID for %s: %s",
-            normalized_name,
-            exception_summary(exc),
+            "Failed to load MusicBrainz genre list: %s", exception_summary(exc)
         )
+        cache.set(cache_key, {}, 60 * 60)
+        return {}
+
+    cache.set(cache_key, mbids_by_name, 60 * 60 * 24 * 30)
+    return mbids_by_name
+
+
+def get_genre_mbid(genre_name: str) -> str:
+    """Return the MusicBrainz genre MBID for a display name, or an empty string."""
+    normalized_name = str(genre_name or "").strip().lower()
+    if not normalized_name:
         return ""
-
-    mbid = ""
-    for genre in response.get("genres", []):
-        candidate_name = str(genre.get("name") or "").strip()
-        if candidate_name.lower() == normalized_name.lower():
-            mbid = genre.get("id") or ""
-            break
-    if not mbid and response.get("genres"):
-        mbid = response["genres"][0].get("id") or ""
-
-    cache.set(cache_key, mbid, 60 * 60 * 24 * 30)
-    return mbid
+    return _get_genre_mbids_by_name().get(normalized_name, "")
 
 
 def get_genre_parents(genre_name: str, *, max_depth: int = 3) -> list[str]:
@@ -1367,9 +1374,7 @@ def get_release_for_group(release_group_id):
             # than an arbitrary browse-order pick.
             best = max(
                 releases,
-                key=lambda r: _release_summary(r, include_image=False)[
-                    "track_count"
-                ],
+                key=lambda r: _release_summary(r, include_image=False)["track_count"],
             )
             release_id = best.get("id")
             cache.set(cache_key, release_id, 60 * 60 * 24 * 7)
@@ -1392,9 +1397,7 @@ def get_release_for_group(release_group_id):
         if releases:
             best = max(
                 releases,
-                key=lambda r: _release_summary(r, include_image=False)[
-                    "track_count"
-                ],
+                key=lambda r: _release_summary(r, include_image=False)["track_count"],
             )
             release_id = best.get("id")
             logger.info(

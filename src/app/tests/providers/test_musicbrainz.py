@@ -135,8 +135,11 @@ class MusicBrainzReleaseTests(SimpleTestCase):
 
     def test_get_genre_parents_walks_parent_chain_and_dedupes(self):
         def _mock_genre_request(endpoint, params=None):
-            if endpoint == "genre":
-                return {"genres": [{"id": "dubstep-id", "name": "dubstep"}]}
+            if endpoint == "genre/all":
+                return {
+                    "genres": [{"id": "dubstep-id", "name": "dubstep"}],
+                    "genre-count": 1,
+                }
             if endpoint == "genre/dubstep-id":
                 return {
                     "relations": [
@@ -174,8 +177,11 @@ class MusicBrainzReleaseTests(SimpleTestCase):
 
     def test_get_genre_parents_falls_back_when_direction_missing(self):
         def _mock_genre_request(endpoint, params=None):
-            if endpoint == "genre":
-                return {"genres": [{"id": "art-rock-id", "name": "art rock"}]}
+            if endpoint == "genre/all":
+                return {
+                    "genres": [{"id": "art-rock-id", "name": "art rock"}],
+                    "genre-count": 1,
+                }
             if endpoint == "genre/art-rock-id":
                 return {
                     "relations": [
@@ -225,7 +231,8 @@ class MusicBrainzReleaseTests(SimpleTestCase):
             patch("app.providers.musicbrainz.cache.get", return_value=None),
             patch("app.providers.musicbrainz.cache.set") as mock_cache_set,
             patch(
-                "app.providers.musicbrainz._mb_request", return_value={"genres": []}
+                "app.providers.musicbrainz._mb_request",
+                return_value={"genres": [], "genre-count": 0},
             ) as mock_mb_request,
         ):
             data = musicbrainz.get_genre_parents("Missing Genre")
@@ -233,8 +240,31 @@ class MusicBrainzReleaseTests(SimpleTestCase):
         self.assertEqual(data, [])
         self.assertEqual(mock_mb_request.call_count, 1)
         cache_values = [call.args[1] for call in mock_cache_set.call_args_list]
-        self.assertIn("", cache_values)
+        self.assertIn({}, cache_values)
         self.assertIn([], cache_values)
+
+    def test_get_genre_mbids_pages_through_genre_all(self):
+        pages = {
+            0: {
+                "genres": [
+                    {"id": f"id-{index}", "name": f"g{index}"} for index in range(100)
+                ],
+                "genre-count": 101,
+            },
+            100: {"genres": [{"id": "id-100", "name": "Last One"}], "genre-count": 101},
+        }
+
+        with (
+            patch("app.providers.musicbrainz.cache.get", return_value=None),
+            patch("app.providers.musicbrainz.cache.set"),
+            patch(
+                "app.providers.musicbrainz._mb_request",
+                side_effect=lambda endpoint, params=None: pages[params["offset"]],
+            ) as mock_mb_request,
+        ):
+            self.assertEqual(musicbrainz.get_genre_mbid("last one"), "id-100")
+
+        self.assertEqual(mock_mb_request.call_count, 2)
 
     def test_get_release_normalizes_pressing_metadata(self):
         with (
@@ -483,9 +513,7 @@ class MusicBrainzWikipediaDataTests(SimpleTestCase):
         with (
             patch("app.providers.musicbrainz.cache.get", return_value=None),
             patch("app.providers.musicbrainz.cache.set") as mock_cache_set,
-            patch(
-                "app.providers.musicbrainz.requests.get", return_value=mock_response
-            ),
+            patch("app.providers.musicbrainz.requests.get", return_value=mock_response),
         ):
             result = musicbrainz.get_wikipedia_data("Tool")
 
@@ -504,9 +532,7 @@ class MusicBrainzWikipediaDataTests(SimpleTestCase):
         with (
             patch("app.providers.musicbrainz.cache.get", return_value=None),
             patch("app.providers.musicbrainz.cache.set"),
-            patch(
-                "app.providers.musicbrainz.requests.get", return_value=mock_response
-            ),
+            patch("app.providers.musicbrainz.requests.get", return_value=mock_response),
         ):
             result = musicbrainz.get_wikipedia_data("Tool_(band)")
 
